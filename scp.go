@@ -99,7 +99,6 @@ type scpChan struct {
 
 type SCP struct {
 	*ssh.Client
-	Ctx        *context.Context
 	KeepTime   bool
 	TimeOption string
 }
@@ -128,7 +127,7 @@ func NewSCP(cli *ssh.Client, keepTime bool) *SCP {
 	}
 }
 
-func (scp *SCP) SwitchScpwFunc(localPath, remotePath string, typ SCPWType) error {
+func (scp *SCP) SwitchScpwFunc(ctx context.Context, localPath, remotePath string, typ SCPWType) error {
 	excludeRootDir := false
 	if typ == PUT {
 		if localPath[len(localPath)-1] == '*' {
@@ -140,9 +139,9 @@ func (scp *SCP) SwitchScpwFunc(localPath, remotePath string, typ SCPWType) error
 			return err
 		}
 		if stat.IsDir() {
-			return scp.PutAll(localPath, remotePath, excludeRootDir)
+			return scp.PutAll(ctx, localPath, remotePath, excludeRootDir)
 		} else {
-			return scp.Put(localPath, remotePath)
+			return scp.Put(ctx, localPath, remotePath)
 		}
 	} else {
 		if remotePath[len(remotePath)-1] == '*' {
@@ -150,14 +149,14 @@ func (scp *SCP) SwitchScpwFunc(localPath, remotePath string, typ SCPWType) error
 			remotePath = remotePath[:len(remotePath)-1]
 		}
 		if excludeRootDir {
-			return scp.GetAll(localPath, remotePath)
+			return scp.GetAll(ctx, localPath, remotePath)
 		} else {
-			return scp.Get(localPath, remotePath)
+			return scp.Get(ctx, localPath, remotePath)
 		}
 	}
 }
 
-func (scp *SCP) PutAll(srcPath, dstPath string, excludeRootDir bool) error {
+func (scp *SCP) PutAll(ctx context.Context, srcPath, dstPath string, excludeRootDir bool) error {
 	wg := sync.WaitGroup{}
 	wg.Add(2)
 	session, err := scp.NewSession()
@@ -176,7 +175,7 @@ func (scp *SCP) PutAll(srcPath, dstPath string, excludeRootDir bool) error {
 	errChan := make(chan error, 1)
 	scpCh := &scpChan{fileChan: make(chan File), exitChan: make(chan struct{}), closeChan: make(chan struct{})}
 	go func() {
-		err := WalkTree(scpCh, srcPath, srcPath, path.Join(dstPath, path.Base(srcPath)), excludeRootDir)
+		err := WalkTree(ctx, scpCh, srcPath, srcPath, path.Join(dstPath, path.Base(srcPath)), excludeRootDir)
 		if err != nil {
 			errChan <- err
 		}
@@ -305,42 +304,47 @@ func (scp *SCP) PutAll(srcPath, dstPath string, excludeRootDir bool) error {
 	return nil
 }
 
-func WalkTree(scpChan *scpChan, rootParent, root, dstPath string, excludeRootDir bool) error {
-	child, name, mode, atime, mtime, err := StatDir(root)
-	if err != nil {
-		return err
-	}
-	if rootParent == root && !excludeRootDir {
-		scpChan.fileChan <- NewFile(name, root, dstPath, mode, atime, mtime, "0", true)
-	}
-	var dirs []os.DirEntry
-	for _, obj := range child {
-		if !obj.IsDir() {
-			filePath := path.Join(root, obj.Name())
-			name, mode, size, atime, mtime, err := StatFile(filePath)
-			if err != nil {
-				return nil
-			}
-			scpChan.fileChan <- NewFile(name, filePath, path.Join(dstPath, name), mode, atime, mtime, size, false)
-		} else {
-			dirs = append(dirs, obj)
-		}
-	}
-
-	if err != nil {
-		return err
-	}
-	for _, dir := range dirs {
-		err := WalkTree(scpChan, rootParent, path.Join(root, dir.Name()), path.Join(dstPath, dir.Name()), excludeRootDir)
+func WalkTree(ctx context.Context, scpChan *scpChan, rootParent, root, dstPath string, excludeRootDir bool) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+		child, name, mode, atime, mtime, err := StatDir(root)
 		if err != nil {
 			return err
 		}
+		if rootParent == root && !excludeRootDir {
+			scpChan.fileChan <- NewFile(name, root, dstPath, mode, atime, mtime, "0", true)
+		}
+		var dirs []os.DirEntry
+		for _, obj := range child {
+			if !obj.IsDir() {
+				filePath := path.Join(root, obj.Name())
+				name, mode, size, atime, mtime, err := StatFile(filePath)
+				if err != nil {
+					return nil
+				}
+				scpChan.fileChan <- NewFile(name, filePath, path.Join(dstPath, name), mode, atime, mtime, size, false)
+			} else {
+				dirs = append(dirs, obj)
+			}
+		}
+
+		if err != nil {
+			return err
+		}
+		for _, dir := range dirs {
+			err := WalkTree(ctx, scpChan, rootParent, path.Join(root, dir.Name()), path.Join(dstPath, dir.Name()), excludeRootDir)
+			if err != nil {
+				return err
+			}
+		}
+		scpChan.exitChan <- struct{}{}
+		if rootParent == root {
+			scpChan.closeChan <- struct{}{}
+		}
+		return nil
 	}
-	scpChan.exitChan <- struct{}{}
-	if rootParent == root {
-		scpChan.closeChan <- struct{}{}
-	}
-	return nil
 }
 
 func (scp *SCP) PutDir(dstPath string, mode string, atime, mtime string) error {
@@ -434,7 +438,7 @@ func (scp *SCP) PutDir(dstPath string, mode string, atime, mtime string) error {
 	return nil
 }
 
-func (scp *SCP) Put(srcPath, dstPath string) error {
+func (scp *SCP) Put(ctx context.Context, srcPath, dstPath string) error {
 	resource, err := NewResource(srcPath)
 	if err != nil {
 		return err
@@ -451,10 +455,10 @@ func (scp *SCP) Put(srcPath, dstPath string) error {
 	if err != nil {
 		panic(err)
 	}
-	return scp.put(dstPath, open, mode, resource.Size(), atime, mtime)
+	return scp.put(ctx, dstPath, open, mode, resource.Size(), atime, mtime)
 }
 
-func (scp *SCP) put(dstPath string, in io.Reader, mode string, size int64, atime, mtime string) error {
+func (scp *SCP) put(ctx context.Context, dstPath string, in io.Reader, mode string, size int64, atime, mtime string) error {
 	wg := sync.WaitGroup{}
 	session, err := scp.NewSession()
 	if err != nil {
@@ -549,7 +553,7 @@ func (scp *SCP) put(dstPath string, in io.Reader, mode string, size int64, atime
 	return nil
 }
 
-func (scp *SCP) Get(srcPath, dstPath string) error {
+func (scp *SCP) Get(ctx context.Context, srcPath, dstPath string) error {
 	session, err := scp.NewSession()
 	if err != nil {
 		return err
@@ -763,7 +767,7 @@ func (scp *SCP) GetDir(localPath, remotePath string) error {
 	return nil
 }
 
-func (scp *SCP) GetAll(localPath, remotePath string) error {
+func (scp *SCP) GetAll(ctx context.Context, localPath, remotePath string) error {
 	session, err := scp.NewSession()
 	if err != nil {
 		return err

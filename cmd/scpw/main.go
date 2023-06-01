@@ -88,10 +88,9 @@ func initScpCli(ctx *cli.Context, node *scpw.Node) error {
 	}
 	keepTime := ctx.Bool("keep-time")
 	scpwCli := scpw.NewSCP(ssh, keepTime)
-	scpwCli.Ctx = &ctx.Context
 	for _, lr := range node.LRMap {
 		local, remote := lr.Local, lr.Remote
-		err := scpwCli.SwitchScpwFunc(local, remote, node.Typ)
+		err := scpwCli.SwitchScpwFunc(ctx.Context, local, remote, node.Typ)
 		if err != nil {
 			return err
 		}
