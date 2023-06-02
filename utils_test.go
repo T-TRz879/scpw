@@ -10,7 +10,7 @@ import (
 )
 
 func TestFileMode(t *testing.T) {
-	mode, err := FileModeV1("../main.go")
+	mode, err := FileModeV1("./cmd/scpw/main.go")
 	if err != nil {
 		panic(err)
 	}

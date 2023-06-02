@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/google/gops/agent"
 	"github.com/manifoldco/promptui"
 	"github.com/urfave/cli/v2"
 	"log"
@@ -15,6 +16,11 @@ const (
 )
 
 func main() {
+	if err := agent.Listen(agent.Options{
+		ShutdownCleanup: true, // automatically closes on os.Interrupt
+	}); err != nil {
+		log.Fatal(err)
+	}
 	cli.VersionFlag = &cli.BoolFlag{
 		Name: "version", Aliases: []string{"V"},
 		Usage: "print version only",

@@ -61,8 +61,8 @@ func HostKey(ip string) (ssh.PublicKey, error) {
 	return hostKey, err
 }
 
-func FileModeV1(path string) (string, error) {
-	file, err := os.Stat(path)
+func FileModeV1(root string) (string, error) {
+	file, err := os.Stat(root)
 	if err != nil {
 		return "", err
 	}
@@ -73,23 +73,34 @@ func FileModeV2(file os.FileInfo) string {
 	return fmt.Sprintf("0%o", file.Mode().Perm())
 }
 
-func StatDir(path string) ([]os.DirEntry, string, string, string, string, error) {
-	dirs, err := os.ReadDir(path)
+func StatDirMeta(root string) (name, mode, atime, mtime string, isDir bool, err error) {
+	stat, err := os.Stat(root)
 	if err != nil {
-		return nil, "", "", "", "", err
+		return
 	}
-	stat, err := os.Stat(path)
-	if err != nil {
-		return nil, "", "", "", "", err
-	}
-	name := stat.Name()
-	mode := FileModeV2(stat)
-	atime, mtime := StatTimeV2(stat)
-	return dirs, name, mode, atime, mtime, nil
+	name = stat.Name()
+	mode = FileModeV2(stat)
+	atime, mtime = StatTimeV2(stat)
+	isDir = stat.IsDir()
+	return
 }
 
-func StatFile(path string) (string, string, string, string, string, error) {
-	stat, err := os.Stat(path)
+func StatDirChild(root string) ([]os.DirEntry, error) {
+	dirs, err := os.ReadDir(root)
+	return dirs, err
+}
+
+func StatDir(root string) (entries []os.DirEntry, name, mode, atime, mtime string, isDir bool, err error) {
+	name, mode, atime, mtime, isDir, err = StatDirMeta(root)
+	if err != nil {
+		return
+	}
+	entries, err = StatDirChild(root)
+	return
+}
+
+func StatFile(root string) (string, string, string, string, string, error) {
+	stat, err := os.Stat(root)
 	if err != nil {
 		return "", "", "", "", "", err
 	}
