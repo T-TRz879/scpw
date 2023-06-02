@@ -9,24 +9,21 @@ on:
       - "v[0-9]+.[0-9]+.[0-9]*"
 
 jobs:
-  release:
+  build-go-binary:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        goos: [linux, windows, darwin] # 需要打包的系统
+        goarch: [amd64, arm64] # 需要打包的架构
+        exclude: # 排除某些平台和架构
+          - goarch: arm64
+            goos: windows
     steps:
-      - name: Checkout
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v3
+      - uses: wangyoucao577/go-release-action@v1.30
         with:
-          fetch-depth: 0
-      - name: Fetch all tags
-        run: git fetch --force --tags
-      - name: Set up Go
-        uses: actions/setup-go@v4
-        with:
-          go-version: 1.19
-      - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v4
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          distribution: goreleaser
-          version: latest
-          args: release --rm-dist --timeout=60m
+          github_token: ${{ secrets.GITHUB_TOKEN }} # 一个默认的变量，用来实现往 Release 中添加文件
+          goos: ${{ matrix.goos }}
+          goarch: ${{ matrix.goarch }}
+          goversion: 1.19 # 可以指定编译使用的 Golang 版本
+          binary_name: "scpw" # 可以指定二进制文件的名称
