@@ -8,7 +8,7 @@ import (
 )
 
 var (
-	testNode         = &Node{Host: "192.168.0.107", Port: "22", User: "trz", Password: "273775"}
+	testNode         = &Node{Host: "host", Port: "port", User: "user", Password: "password"}
 	remoteDir        = []string{"/tmp/scpw", "/tmp/scpw/dir1", "/tmp/scpw/dir2", "/tmp/scpw/dir3"}
 	remoteFile       = []string{"/tmp/scpw/a.txt", "/tmp/scpw/b.txt", "/tmp/scpw/c.txt"}
 	noPermissionPath = "/root"
