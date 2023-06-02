@@ -6,12 +6,18 @@ import (
 	"github.com/go-cmd/cmd"
 	"github.com/mattn/go-isatty"
 	"golang.org/x/crypto/ssh"
+	"math/rand"
 	"os"
+	"path"
 	"runtime"
 	"strconv"
+	"time"
 )
 
-var unit = []string{"B", "KB", "GB", "TB"}
+var (
+	unit    = []string{"B", "KB", "GB", "TB"}
+	letters = []byte("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890")
+)
 
 func MinInt(a, b int) int {
 	if a < b {
@@ -140,4 +146,13 @@ func ParseMode(s string) os.FileMode {
 	}
 	res, _ := strconv.Atoi(string(mode))
 	return os.FileMode(res)
+}
+
+func randName(root string) string {
+	rand.Seed(time.Now().Unix())
+	res := make([]byte, 5)
+	for i := 0; i < len(res); i++ {
+		res[i] = letters[rand.Intn(len(letters))]
+	}
+	return path.Join(root, string(res))
 }

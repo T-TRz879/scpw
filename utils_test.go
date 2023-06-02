@@ -18,7 +18,7 @@ func TestFileMode(t *testing.T) {
 }
 
 func TestStatTimeV2(t *testing.T) {
-	open, _ := os.Stat("../scp.go")
+	open, _ := os.Stat("./cmd/scpw/main.go")
 	atime, mtime := StatTimeV2(open)
 	log.Infof("atime:%s mtime:%s", atime, mtime)
 }
