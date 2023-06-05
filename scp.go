@@ -139,7 +139,11 @@ func (scp *SCP) SwitchScpwFunc(ctx context.Context, localPath, remotePath string
 			return err
 		}
 		if stat.IsDir() {
-			return scp.PutAll(ctx, localPath, remotePath, excludeRootDir)
+			if excludeRootDir {
+				return scp.PutAllExcludeRoot(ctx, localPath, remotePath)
+			} else {
+				return scp.PutAll(ctx, localPath, remotePath)
+			}
 		} else {
 			return scp.Put(ctx, localPath, remotePath)
 		}
@@ -156,7 +160,27 @@ func (scp *SCP) SwitchScpwFunc(ctx context.Context, localPath, remotePath string
 	}
 }
 
-func (scp *SCP) PutAll(ctx context.Context, srcPath, dstPath string, excludeRootDir bool) error {
+func (scp *SCP) PutAllExcludeRoot(ctx context.Context, srcPath, dstPath string) error {
+	var err error
+	child, err := StatDirChild(srcPath)
+	if err != nil {
+		return err
+	}
+	for _, entry := range child {
+		l, r := path.Join(srcPath, entry.Name()), path.Join(dstPath, entry.Name())
+		if entry.IsDir() {
+			err = scp.PutAll(ctx, l, r)
+		} else {
+			err = scp.Put(ctx, l, r)
+		}
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (scp *SCP) PutAll(ctx context.Context, srcPath, dstPath string) error {
 	wg := sync.WaitGroup{}
 	wg.Add(2)
 	session, err := scp.NewSession()
@@ -172,12 +196,13 @@ func (scp *SCP) PutAll(ctx context.Context, srcPath, dstPath string, excludeRoot
 	if err != nil {
 		return err
 	}
-	errChan := make(chan error, 1)
+	errChan := make(chan error, 3)
 	scpCh := &scpChan{fileChan: make(chan File), exitChan: make(chan struct{}), closeChan: make(chan struct{})}
 	go func() {
-		err := WalkTree(ctx, scpCh, srcPath, srcPath, path.Join(dstPath, path.Base(srcPath)), excludeRootDir)
+		err := WalkTree(ctx, scpCh, srcPath, srcPath, dstPath)
 		if err != nil {
 			errChan <- err
+			return
 		}
 	}()
 
@@ -188,9 +213,9 @@ func (scp *SCP) PutAll(ctx context.Context, srcPath, dstPath string, excludeRoot
 		for {
 			select {
 			case file := <-scpCh.fileChan:
-				switch file.Name {
-				case "":
-					_, err = fmt.Fprintln(stdin, "E")
+				//log.Errorf("remote:%s", file.RemotePath)
+				if scp.KeepTime {
+					_, err = fmt.Fprintln(stdin, "T"+file.Mtime, "0", file.Atime, "0")
 					if err != nil {
 						errChan <- err
 						return
@@ -201,68 +226,54 @@ func (scp *SCP) PutAll(ctx context.Context, srcPath, dstPath string, excludeRoot
 						errChan <- err
 						return
 					}
-				default:
-					if scp.KeepTime {
-						_, err = fmt.Fprintln(stdin, "T"+file.Mtime, "0", file.Atime, "0")
-						if err != nil {
-							errChan <- err
-							return
-						}
-
-						err = checkResponse(stdout)
-						if err != nil {
-							errChan <- err
-							return
-						}
-					}
-
-					typ, size := "C", file.Size
-					if file.IsDir {
-						typ = "D"
-						size = "0"
-					}
-					_, err = fmt.Fprintln(stdin, typ+file.Mode, size, file.Name)
-					if err != nil {
-						errChan <- err
-						return
-					}
-
-					err = checkResponse(stdout)
-					if err != nil {
-						errChan <- err
-						return
-					}
-
-					if !file.IsDir {
-						sizeNum, err := ParseInt64(size)
-						if err != nil {
-							errChan <- err
-							return
-						}
-						open, err := os.Open(file.LocalPath)
-						err = parseContent(stdin, open, sizeNum)
-						open.Close()
-						if err != nil {
-							errChan <- err
-							return
-						}
-
-						_, err = fmt.Fprint(stdin, "\x00")
-						if err != nil {
-							errChan <- err
-							return
-						}
-
-						err = checkResponse(stdout)
-						if err != nil {
-							errChan <- err
-							return
-						}
-					}
-
-					log.Printf("file:[%40s] size:[%15s]\n", file.Name, file.Size)
 				}
+
+				typ, size := "C", file.Size
+				if file.IsDir {
+					typ = "D"
+					size = "0"
+				}
+				_, err = fmt.Fprintln(stdin, typ+file.Mode, size, file.Name)
+				if err != nil {
+					errChan <- err
+					return
+				}
+
+				err = checkResponse(stdout)
+				if err != nil {
+					errChan <- err
+					return
+				}
+
+				if !file.IsDir {
+					sizeNum, err := ParseInt64(size)
+					if err != nil {
+						errChan <- err
+						return
+					}
+					open, err := os.Open(file.LocalPath)
+					err = parseContent(stdin, open, sizeNum)
+					open.Close()
+					if err != nil {
+						errChan <- err
+						return
+					}
+
+					_, err = fmt.Fprint(stdin, "\x00")
+					if err != nil {
+						errChan <- err
+						return
+					}
+
+					err = checkResponse(stdout)
+					if err != nil {
+						errChan <- err
+						return
+					}
+				}
+				fmt.Printf("file:[%40s] size:[%15s]\n", file.Name, file.Size)
 			case <-scpCh.exitChan:
+				//log.Errorf("E")
 				_, err = fmt.Fprintln(stdin, E)
 				if err != nil {
 					errChan <- err
@@ -285,6 +296,7 @@ func (scp *SCP) PutAll(ctx context.Context, srcPath, dstPath string, excludeRoot
 		err := session.Run(fmt.Sprintf("scp -rt%s%q", scp.TimeOption, dstPath))
 		if err != nil {
 			errChan <- err
+			return
 		}
 
 		err = checkResponse(stdout)
@@ -304,7 +316,7 @@ func (scp *SCP) PutAll(ctx context.Context, srcPath, dstPath string, excludeRoot
 	return nil
 }
 
-func WalkTree(ctx context.Context, scpChan *scpChan, rootParent, root, dstPath string, excludeRootDir bool) error {
+func WalkTree(ctx context.Context, scpChan *scpChan, rootParent, root, dstPath string) error {
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
@@ -313,9 +325,7 @@ func WalkTree(ctx context.Context, scpChan *scpChan, rootParent, root, dstPath s
 		if err != nil {
 			return err
 		}
-		if rootParent == root && !excludeRootDir {
-			scpChan.fileChan <- NewFile(name, root, dstPath, mode, atime, mtime, "0", true)
-		}
+		scpChan.fileChan <- NewFile(name, root, dstPath, mode, atime, mtime, "0", true)
 		var dirs []os.DirEntry
 		for _, obj := range child {
 			if !obj.IsDir() {
@@ -334,7 +344,7 @@ func WalkTree(ctx context.Context, scpChan *scpChan, rootParent, root, dstPath s
 			return err
 		}
 		for _, dir := range dirs {
-			err := WalkTree(ctx, scpChan, rootParent, path.Join(root, dir.Name()), path.Join(dstPath, dir.Name()), excludeRootDir)
+			err := WalkTree(ctx, scpChan, rootParent, path.Join(root, dir.Name()), path.Join(dstPath, dir.Name()))
 			if err != nil {
 				return err
 			}
@@ -542,7 +552,7 @@ func (scp *SCP) put(ctx context.Context, dstPath string, in io.Reader, mode stri
 			errChan <- err
 			return
 		}
-		log.Printf("file:[%40s] size:[%15d]\n", fileName, size)
+		fmt.Printf("file:[%40s] size:[%15d]\n", fileName, size)
 	}()
 
 	go func() {
@@ -678,7 +688,7 @@ func (scp *SCP) Get(ctx context.Context, srcPath, dstPath string) error {
 			os.Remove(srcPath)
 			return
 		}
-		log.Printf("file:[%40s] size:[%15d]\n", path.Base(srcPath), attr.Size)
+		fmt.Printf("file:[%40s] size:[%15d]\n", path.Base(srcPath), attr.Size)
 	}()
 	wg.Wait()
 	close(errChan)
@@ -854,7 +864,7 @@ func (scp *SCP) GetAll(ctx context.Context, localPath, remotePath string) error 
 				curLocalPath = path.Join(curLocalPath, attr.Name)
 				curRemotePath = path.Join(curRemotePath, attr.Name)
 				log.Infof("file localPath:%s remotePath:%s", curLocalPath, curRemotePath)
-				//log.Printf("file:[%40s] size:[%15s]\n", file.Name, file.Size)
+				//fmt.Printf("file:[%40s] size:[%15s]\n", file.Name, file.Size)
 
 				err = ack(stdin)
 				if err != nil {

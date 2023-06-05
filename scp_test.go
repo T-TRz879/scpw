@@ -78,7 +78,7 @@ func TestPutAll(t *testing.T) {
 	ssh, err := NewSSH(testNode)
 	assert.Nil(t, err)
 	scpwCli := NewSCP(ssh, true)
-	err = scpwCli.PutAll(context.Background(), local, remote, true)
+	err = scpwCli.PutAll(context.Background(), local, remote)
 	assert.Nil(t, err)
 }
 
@@ -194,43 +194,11 @@ func TestGetDirPermissionDeny(t *testing.T) {
 
 func TestWalkTree(t *testing.T) {
 	scpCh := &scpChan{fileChan: make(chan File), exitChan: make(chan struct{}), closeChan: make(chan struct{})}
-	path := "../scpw/testfile/"
+	path := "./.git/"
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go func() {
-		err := WalkTree(ctx, scpCh, path, path, "/tmp", false)
-		if err != nil {
-			panic(err)
-		}
-	}()
-	numF, numD := 0, 0
-loop:
-	for {
-		select {
-		case file := <-scpCh.fileChan:
-			log.Infof("%v", file)
-			if file.IsDir {
-				numD++
-			} else {
-				numF++
-			}
-		case <-scpCh.exitChan:
-			//cancel()
-			log.Infof("E")
-		case <-scpCh.closeChan:
-			break loop
-		}
-	}
-	log.Infof("file:%d dir:%d", numF, numD)
-}
-
-func TestWalkTreeEx(t *testing.T) {
-	scpCh := &scpChan{fileChan: make(chan File), exitChan: make(chan struct{}), closeChan: make(chan struct{})}
-	path := "../scpw/testfile/"
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	go func() {
-		err := WalkTree(ctx, scpCh, path, path, "/tmp", true)
+		err := WalkTree(ctx, scpCh, path, path, "/tmp/.git/")
 		if err != nil {
 			panic(err)
 		}
