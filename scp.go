@@ -834,7 +834,7 @@ func (scp *SCP) GetAll(ctx context.Context, localPath, remotePath string) error 
 			return
 		}
 
-		err = session.Start(fmt.Sprintf("scp -rf%s%q", scp.TimeOption, remotePath))
+		err = session.Start(fmt.Sprintf("scp -qprf%s%q", scp.TimeOption, remotePath))
 		if err != nil {
 			errChan <- err
 			return
@@ -846,6 +846,7 @@ func (scp *SCP) GetAll(ctx context.Context, localPath, remotePath string) error 
 			return
 		}
 
+		var atime, mtime *time.Time
 		curLocalPath, curRemotePath := localPath, path.Dir(remotePath)
 
 		for {
@@ -859,7 +860,8 @@ func (scp *SCP) GetAll(ctx context.Context, localPath, remotePath string) error 
 				return
 			}
 			if attr.Typ == T {
-
+				atime = &attr.Atime
+				mtime = &attr.Mtime
 			} else if attr.Typ == C {
 				curLocalPath = path.Join(curLocalPath, attr.Name)
 				curRemotePath = path.Join(curRemotePath, attr.Name)
@@ -884,6 +886,14 @@ func (scp *SCP) GetAll(ctx context.Context, localPath, remotePath string) error 
 					return
 				}
 
+				if atime != nil {
+					err = os.Chtimes(curLocalPath, *atime, *mtime)
+					if err != nil {
+						errChan <- err
+						return
+					}
+				}
+
 				var cur int64
 				for cur < attr.Size {
 					readN, err := io.CopyN(in, stdout, attr.Size)
@@ -894,20 +904,12 @@ func (scp *SCP) GetAll(ctx context.Context, localPath, remotePath string) error 
 					cur += readN
 				}
 
-				buffer := make([]uint8, 1)
-				n, err := stdout.Read(buffer)
+				err = checkResponse(stdout)
 				if err != nil {
 					errChan <- err
 					return
 				}
-				if n != 1 {
-					errChan <- errors.New("check byte after read data")
-					return
-				}
-				if buffer[0] != 0 {
-					errChan <- errors.New("response attr fail")
-					return
-				}
+
 				l, _ := path.Split(curLocalPath)
 				r, _ := path.Split(curRemotePath)
 				curLocalPath, curRemotePath = l[:len(l)-1], r[:len(r)-1]
@@ -915,6 +917,18 @@ func (scp *SCP) GetAll(ctx context.Context, localPath, remotePath string) error 
 				curLocalPath = path.Join(curLocalPath, attr.Name)
 				curRemotePath = path.Join(curRemotePath, attr.Name)
 				err := os.Mkdir(curLocalPath, attr.Mode)
+				if err != nil {
+					errChan <- err
+					return
+				}
+				if atime != nil {
+					err = os.Chtimes(curLocalPath, *atime, *mtime)
+					if err != nil {
+						errChan <- err
+						return
+					}
+				}
+				err = checkResponse(stdout)
 				if err != nil {
 					errChan <- err
 					return
@@ -1027,7 +1041,6 @@ func parseResponse(out io.Reader) (Attr, error) {
 		}
 		attr.Name = parts[2]
 	case E:
-		log.Infof("E")
 	default:
 		return attr, errors.New(fmt.Sprintf("parse steam fail message%s", message))
 	}
