@@ -2,7 +2,6 @@ package scpw
 
 import (
 	"context"
-	"github.com/google/gops/agent"
 	"github.com/stretchr/testify/assert"
 	"os"
 	"testing"
@@ -15,13 +14,13 @@ var (
 	noPermissionPath = "/root"
 )
 
-func gops() {
-	if err := agent.Listen(agent.Options{
-		ShutdownCleanup: true,
-	}); err != nil {
-		log.Fatal(err)
-	}
-}
+//func gops() {
+//	if err := agent.Listen(agent.Options{
+//		ShutdownCleanup: true,
+//	}); err != nil {
+//		log.Fatal(err)
+//	}
+//}
 
 func TestAAInit(t *testing.T) {
 	ssh, err := NewSSH(testNode)
