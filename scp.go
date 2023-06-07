@@ -916,59 +916,6 @@ func ack(in io.Writer) error {
 	return nil
 }
 
-func parseResponse(out io.Reader) error {
-	bytes := make([]uint8, 1)
-	n, err := out.Read(bytes)
-	if err != nil {
-		return err
-	}
-	log.Infof("n:%d", n)
-	if int(bytes[0]) != 0 {
-		bufferedReader := bufio.NewReader(out)
-		message, err := bufferedReader.ReadString('\n')
-		if err != nil {
-			return errors.New(message)
-		}
-	}
-	return nil
-}
-
-func parseAttr1(out io.Reader) (Attr, error) {
-	var attr Attr
-
-	bufferedReader := bufio.NewReader(out)
-	message, err := bufferedReader.ReadString('\n')
-	if err != nil {
-		return attr, err
-	}
-	log.Infof(message)
-	message = strings.ReplaceAll(message, "\n", "")
-	parts := strings.Split(message, " ")
-	commandTyp := string(parts[0][0])
-	attr.Typ = commandTyp
-	switch commandTyp {
-	case T:
-		err := attr.SetTime(parts[0][1:], parts[2])
-		if err != nil {
-			return attr, err
-		}
-	case C, D:
-		err := attr.SetMode(parts[0][1:])
-		if err != nil {
-			return attr, err
-		}
-		err = attr.SetSize(parts[1])
-		if err != nil {
-			return attr, err
-		}
-		attr.Name = parts[2]
-	case E:
-	default:
-		return attr, errors.New(fmt.Sprintf("parse steam fail message%s", message))
-	}
-	return attr, nil
-}
-
 func parseMeta(out io.Reader, attr *Attr) error {
 	bufferedReader := bufio.NewReader(out)
 	message, err := bufferedReader.ReadString('\n')
@@ -1000,57 +947,6 @@ func parseMeta(out io.Reader, attr *Attr) error {
 	}
 	return nil
 }
-
-//func parseTime(out io.Reader, attr *Attr) error {
-//	bufferedReader := bufio.NewReader(out)
-//	message, err := bufferedReader.ReadString('\n')
-//	if err != nil {
-//		return err
-//	}
-//	message = strings.ReplaceAll(message, "\n", "")
-//	parts := strings.Split(message, " ")
-//	if len(parts) != 4 || (len(parts) > 0 && !strings.HasPrefix(parts[0], T)) {
-//		return errors.New(fmt.Sprintf("unable to parse message as time infos, message:%s", message))
-//	}
-//
-//	attr.Typ = parseCommandType(message)
-//	if attr.Typ == NULL {
-//		return errors.New(fmt.Sprintf("invalid commandType:[%s]", message))
-//	}
-//	err = attr.SetTime(parts[0][1:], parts[2])
-//	if err != nil {
-//		return err
-//	}
-//	return nil
-//}
-//
-//func parseAttr(out io.Reader, attr *Attr) error {
-//	bufferedReader := bufio.NewReader(out)
-//	message, err := bufferedReader.ReadString('\n')
-//	if err != nil {
-//		return err
-//	}
-//	message = strings.ReplaceAll(message, "\n", "")
-//	parts := strings.Split(message, " ")
-//	if len(parts) != 3 || (len(parts) > 0 && (!strings.HasPrefix(parts[0], C) && !strings.HasPrefix(parts[0], D))) {
-//		return errors.New(fmt.Sprintf("unable to parse message as attr infos,message:%s", message))
-//	}
-//
-//	err = attr.SetMode(parts[0][1:])
-//	if err != nil {
-//		return err
-//	}
-//	err = attr.SetSize(parts[1])
-//	if err != nil {
-//		return err
-//	}
-//	attr.Name = parts[2]
-//	attr.Typ = parseCommandType(message)
-//	if attr.Typ == NULL {
-//		return errors.New(fmt.Sprintf("invalid commandType:[%s]", message))
-//	}
-//	return nil
-//}
 
 func parseCommandType(s string) CommandType {
 	b := s[0]
