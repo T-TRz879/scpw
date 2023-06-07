@@ -40,7 +40,7 @@ builds:
         goarch: 386
       - goos: openbsd
         goarch: arm
-       - goos: windows
+      - goos: windows
         goarch: 386
 
 archives:
