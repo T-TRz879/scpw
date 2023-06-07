@@ -15,14 +15,9 @@ builds:
       - darwin
       - linux
       - freebsd
-      - openbsd
-      - solaris
     goarch:
       - amd64
-      - arm
       - arm64
-      - mips
-      - mipsle
       - mips64
       - mips64le
     goarm:
@@ -34,8 +29,8 @@ builds:
       - softfloat
 
     ignore:
-      - goos: openbsd
-        goarch: arm
+      - goos: freebsd
+        goarch: mips64
       - goos: windows
         goarch: arm64
 
@@ -43,9 +38,6 @@ archives:
   - id: scpw
     name_template: "{{ .ProjectName }}_v{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}{{ if .Mips }}_{{ .Mips }}{{ end }}"
     format: tar.gz
-    format_overrides:
-      - goos: windows
-        format: zip
     files:
       - LICENSE
       - README.md
