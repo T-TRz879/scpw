@@ -1,4 +1,4 @@
-module scpw
+module github.com/T-TRz879/scpw
 
 go 1.19
 

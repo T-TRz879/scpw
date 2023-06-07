@@ -1,12 +1,12 @@
 package main
 
 import (
+	"github.com/T-TRz879/scpw"
 	"github.com/google/gops/agent"
 	"github.com/manifoldco/promptui"
 	"github.com/urfave/cli/v2"
 	"log"
 	"os"
-	"scpw"
 	"strings"
 )
 
