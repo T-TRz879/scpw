@@ -19,7 +19,6 @@ builds:
       - solaris
     goarch:
       - amd64
-      - 386
       - arm
       - arm64
       - mips
@@ -35,8 +34,6 @@ builds:
       - softfloat
 
     ignore:
-      - goos: darwin
-        goarch: 386
       - goos: openbsd
         goarch: arm
       - goos: windows
