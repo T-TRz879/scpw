@@ -23,7 +23,7 @@ config example:
 <!-- prettier-ignore -->
 
 ```yaml
-# To upload or download all the content in the directory, simply add the*
+# To upload or download all the content in the directory(Exclude Root Directory), simply add the*
 # (example: download /tmp -> /tmp/*)
 - name: serverA
   user: appAdmin
@@ -32,6 +32,7 @@ config example:
   password: 123456
   type: PUT
   lr-map:
+  # Put all content under /tmp to the remote /tmp/A directory
   - { local: /tmp/* , remote: /tmp/A/ }
   - { local: /tmp/a.txt , remote: /tmp/b.txt }
 
@@ -43,7 +44,10 @@ config example:
   password: 123456
   type: GET
   lr-map:
-  - { local: /home/appAdmin/lib/* , remote: /root/lib/ }
+  # Get all content from remote /root/lib to the local /home/appAdmin/lib directory
+  - { local: /home/appAdmin/lib/ , remote: /root/lib/* }
+  # Get all content from remote /root/lib (include lib dir) to the local /home/appAdmin directory
+  - { local: /home/appAdmin/ , remote: /root/lib/ }
   - { local: /home/appAdmin/redis.conf , remote: /root/redis.conf }
 
 ```

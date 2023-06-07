@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/google/gops/agent"
 	"github.com/stretchr/testify/assert"
+	"os"
 	"testing"
 )
 
@@ -120,76 +121,16 @@ func TestGetRemoteIsDir(t *testing.T) {
 	assert.NotNil(t, err)
 }
 
-func TestPutDir(t *testing.T) {
-	local, remote := "./testfile", randName("/tmp")
+func TestGetAll(t *testing.T) {
+	local := randName("/tmp")
+	os.Mkdir(local, os.FileMode(uint32(0700)))
+	log.Infof("local:%s", local)
+	remote := "/tmp/scpw"
 	ssh, err := NewSSH(testNode)
 	assert.Nil(t, err)
 	scpwCli := NewSCP(ssh, true)
-	err = scpwCli.PutDir(context.Background(), local, remote)
+	err = scpwCli.GetAll(context.Background(), local, remote)
 	assert.Nil(t, err)
-}
-
-func TestPutDirNotExist(t *testing.T) {
-	local, remote := "./testfile/not-exist-dir", randName("/tmp")
-	ssh, err := NewSSH(testNode)
-	assert.Nil(t, err)
-	scpwCli := NewSCP(ssh, true)
-	err = scpwCli.PutDir(context.Background(), local, remote)
-	assert.NotNil(t, err)
-}
-
-func TestPutDirNotDir(t *testing.T) {
-	local, remote := "./testfile/a.txt", randName("/tmp")
-	ssh, err := NewSSH(testNode)
-	assert.Nil(t, err)
-	scpwCli := NewSCP(ssh, true)
-	err = scpwCli.PutDir(context.Background(), local, remote)
-	assert.NotNil(t, err)
-}
-
-func TestPutDirPermissionDeny(t *testing.T) {
-	local, remote := "./testfile", randName(noPermissionPath)
-	ssh, err := NewSSH(testNode)
-	assert.Nil(t, err)
-	scpwCli := NewSCP(ssh, true)
-	err = scpwCli.PutDir(context.Background(), local, remote)
-	assert.NotNil(t, err)
-}
-
-func TestGetDir(t *testing.T) {
-	local, remote := randName("/tmp"), "/tmp/scpw"
-	ssh, err := NewSSH(testNode)
-	assert.Nil(t, err)
-	scpwCli := NewSCP(ssh, true)
-	err = scpwCli.GetDir(context.Background(), local, remote)
-	assert.Nil(t, err)
-}
-
-func TestGetDirNotExist(t *testing.T) {
-	local, remote := randName("/tmp"), "/tmp/afjsdiofjod"
-	ssh, err := NewSSH(testNode)
-	assert.Nil(t, err)
-	scpwCli := NewSCP(ssh, true)
-	err = scpwCli.GetDir(context.Background(), local, remote)
-	assert.NotNil(t, err)
-}
-
-func TestGetDirIsNotDir(t *testing.T) {
-	local, remote := randName("/tmp"), "/tmp/scpw/a.txt"
-	ssh, err := NewSSH(testNode)
-	assert.Nil(t, err)
-	scpwCli := NewSCP(ssh, true)
-	err = scpwCli.GetDir(context.Background(), local, remote)
-	assert.NotNil(t, err)
-}
-
-func TestGetDirPermissionDeny(t *testing.T) {
-	local, remote := randName("/tmp"), randName(noPermissionPath)
-	ssh, err := NewSSH(testNode)
-	assert.Nil(t, err)
-	scpwCli := NewSCP(ssh, true)
-	err = scpwCli.GetDir(context.Background(), local, remote)
-	assert.NotNil(t, err)
 }
 
 func TestWalkTree(t *testing.T) {

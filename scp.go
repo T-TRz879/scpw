@@ -20,10 +20,11 @@ var log = GetLogger("scpw")
 type CommandType = string
 
 const (
-	C CommandType = "C"
-	D CommandType = "D"
-	E CommandType = "E"
-	T CommandType = "T"
+	C    CommandType = "C"
+	D    CommandType = "D"
+	E    CommandType = "E"
+	T    CommandType = "T"
+	NULL CommandType = "NULL"
 )
 
 type File struct {
@@ -620,7 +621,7 @@ func (scp *SCP) Get(ctx context.Context, srcPath, dstPath string) error {
 		var attr Attr
 
 		if scp.KeepTime {
-			err = parseTime(stdout, &attr)
+			err = parseMeta(stdout, &attr)
 			if err != nil {
 				errChan <- err
 				return
@@ -633,7 +634,7 @@ func (scp *SCP) Get(ctx context.Context, srcPath, dstPath string) error {
 			}
 		}
 
-		err = parseAttr(stdout, &attr)
+		err = parseMeta(stdout, &attr)
 		if err != nil {
 			errChan <- err
 			return
@@ -682,6 +683,13 @@ func (scp *SCP) Get(ctx context.Context, srcPath, dstPath string) error {
 			return
 		}
 
+		err = checkResponse(stdout)
+		if err != nil {
+			errChan <- err
+			os.Remove(srcPath)
+			return
+		}
+
 		err = session.Wait()
 		if err != nil {
 			errChan <- err
@@ -700,127 +708,21 @@ func (scp *SCP) Get(ctx context.Context, srcPath, dstPath string) error {
 	return nil
 }
 
-func (scp *SCP) GetDir(ctx context.Context, localPath, remotePath string) error {
-	session, err := scp.NewSession()
-	defer session.Close()
-	if err != nil {
-		return err
-	}
-	wg := &sync.WaitGroup{}
-	errChan := make(chan error, 1)
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-
-		stdin, err := session.StdinPipe()
-		if err != nil {
-			errChan <- err
-			return
-		}
-		defer stdin.Close()
-
-		stdout, err := session.StdoutPipe()
-		if err != nil {
-			errChan <- err
-			return
-		}
-
-		err = session.Start(fmt.Sprintf("scp -frpd%s%q", scp.TimeOption, remotePath))
-		if err != nil {
-			errChan <- err
-			return
-		}
-
-		err = ack(stdin)
-		if err != nil {
-			errChan <- err
-			return
-		}
-
-		var attr Attr
-
-		if scp.KeepTime {
-			err = parseTime(stdout, &attr)
-			if err != nil {
-				errChan <- err
-				return
-			}
-
-			err = ack(stdin)
-			if err != nil {
-				errChan <- err
-				return
-			}
-		}
-
-		err = parseAttr(stdout, &attr)
-		if err != nil {
-			errChan <- err
-			return
-		}
-
-		if attr.Size != 0 {
-			errChan <- errors.New(fmt.Sprintf("remote:[%s] is not dir", remotePath))
-			return
-		}
-
-		err = ack(stdin)
-		if err != nil {
-			errChan <- err
-			return
-		}
-
-		err = parseContent(stdin, stdout, attr.Size)
-		if err != nil {
-			errChan <- err
-			return
-		}
-
-		err = ack(stdin)
-		if err != nil {
-			errChan <- err
-			return
-		}
-
-		// mkdir dir
-		err = os.Mkdir(localPath, attr.Mode)
-		if err != nil {
-			errChan <- err
-			return
-		}
-
-		if scp.KeepTime {
-			err = os.Chtimes(localPath, attr.Atime, attr.Mtime)
-			if err != nil {
-				errChan <- err
-				os.Remove(localPath)
-				return
-			}
-		}
-	}()
-	wg.Wait()
-	close(errChan)
-	for err := range errChan {
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 func (scp *SCP) GetAll(ctx context.Context, localPath, remotePath string) error {
 	session, err := scp.NewSession()
 	if err != nil {
 		return err
 	}
 	wg := &sync.WaitGroup{}
-	errChan := make(chan error, 1)
+	errChan := make(chan error, 2)
 
 	wg.Add(1)
 	go func() {
-		defer wg.Done()
-
+		var err error
+		defer func() {
+			errChan <- err
+			wg.Done()
+		}()
 		stdin, err := session.StdinPipe()
 		if err != nil {
 			errChan <- err
@@ -834,7 +736,7 @@ func (scp *SCP) GetAll(ctx context.Context, localPath, remotePath string) error 
 			return
 		}
 
-		err = session.Start(fmt.Sprintf("scp -qprf%s%q", scp.TimeOption, remotePath))
+		err = session.Start(fmt.Sprintf("scp -rf%s%q", scp.TimeOption, remotePath))
 		if err != nil {
 			errChan <- err
 			return
@@ -846,111 +748,114 @@ func (scp *SCP) GetAll(ctx context.Context, localPath, remotePath string) error 
 			return
 		}
 
-		var atime, mtime *time.Time
-		curLocalPath, curRemotePath := localPath, path.Dir(remotePath)
-
+		curLocal, curRemote := localPath, path.Dir(path.Clean(remotePath))
 		for {
-			attr, err := parseResponse(stdout)
-			if err != nil && err.Error() == "EOF" {
-				log.Infof("scp remote all success!!")
-				break
-			}
-			if err != nil {
-				errChan <- err
-				return
-			}
-			if attr.Typ == T {
-				atime = &attr.Atime
-				mtime = &attr.Mtime
-			} else if attr.Typ == C {
-				curLocalPath = path.Join(curLocalPath, attr.Name)
-				curRemotePath = path.Join(curRemotePath, attr.Name)
-				log.Infof("file localPath:%s remotePath:%s", curLocalPath, curRemotePath)
-				//fmt.Printf("file:[%40s] size:[%15s]\n", file.Name, file.Size)
+			var attr Attr
+			if scp.KeepTime {
+				err = parseMeta(stdout, &attr)
+				if err != nil {
+					if err.Error() == "EOF" {
+						log.Debug("GetAll success")
+						break
+					}
+					errChan <- err
+					return
+				}
 
 				err = ack(stdin)
 				if err != nil {
 					errChan <- err
 					return
 				}
-
-				in, err := os.Create(curLocalPath)
-				if err != nil {
-					errChan <- err
-					return
-				}
-
-				err = os.Chmod(curLocalPath, attr.Mode)
-				if err != nil {
-					errChan <- err
-					return
-				}
-
-				if atime != nil {
-					err = os.Chtimes(curLocalPath, *atime, *mtime)
-					if err != nil {
-						errChan <- err
-						return
-					}
-				}
-
-				var cur int64
-				for cur < attr.Size {
-					readN, err := io.CopyN(in, stdout, attr.Size)
-					if err != nil {
-						errChan <- err
-						return
-					}
-					cur += readN
-				}
-
-				err = checkResponse(stdout)
-				if err != nil {
-					errChan <- err
-					return
-				}
-
-				l, _ := path.Split(curLocalPath)
-				r, _ := path.Split(curRemotePath)
-				curLocalPath, curRemotePath = l[:len(l)-1], r[:len(r)-1]
-			} else if attr.Typ == D {
-				curLocalPath = path.Join(curLocalPath, attr.Name)
-				curRemotePath = path.Join(curRemotePath, attr.Name)
-				err := os.Mkdir(curLocalPath, attr.Mode)
-				if err != nil {
-					errChan <- err
-					return
-				}
-				if atime != nil {
-					err = os.Chtimes(curLocalPath, *atime, *mtime)
-					if err != nil {
-						errChan <- err
-						return
-					}
-				}
-				err = checkResponse(stdout)
-				if err != nil {
-					errChan <- err
-					return
-				}
-				log.Infof("dir localPath:%s remotePath:%s", curLocalPath, curRemotePath)
-			} else {
-				l, _ := path.Split(curLocalPath)
-				r, _ := path.Split(curRemotePath)
-				curLocalPath, curRemotePath = l[:len(l)-1], r[:len(r)-1]
-				log.Infof("E localPath:%s remotePath:%s", curLocalPath, curRemotePath)
 			}
-			err = ack(stdin)
-			if err != nil {
-				errChan <- err
+
+			if attr.Typ != E {
+				err = parseMeta(stdout, &attr)
+				if err != nil {
+					errChan <- err
+					return
+				}
+
+				err = ack(stdin)
+				if err != nil {
+					errChan <- err
+					return
+				}
+				curLocal = path.Join(curLocal, attr.Name)
+				curRemote = path.Join(curRemote, attr.Name)
+			}
+
+			var in *os.File
+			if attr.Typ == C {
+				// create file
+				in, err = os.Create(curLocal)
+				if err != nil {
+					errChan <- err
+					return
+				}
+
+				err = os.Chmod(curLocal, attr.Mode)
+				if err != nil {
+					errChan <- err
+					os.Remove(curLocal)
+					return
+				}
+
+			} else if attr.Typ == D {
+				// mkdir dir
+				err := os.Mkdir(curLocal, attr.Mode)
+				if err != nil {
+					errChan <- err
+					return
+				}
+
+			} else if attr.Typ == E {
+				// cd ../
+				curLocal = path.Dir(path.Clean(curLocal))
+				curRemote = path.Dir(path.Clean(curRemote))
+			} else {
+				// maybe error
+				errChan <- errors.New(fmt.Sprintf("invalid type:[%s]", attr.Typ))
 				return
 			}
-		}
 
+			if scp.KeepTime && attr.Typ != E {
+				err = os.Chtimes(curLocal, attr.Atime, attr.Mtime)
+				if err != nil {
+					errChan <- err
+					os.Remove(curLocal)
+					return
+				}
+			}
+			if attr.Typ == C {
+				err = parseContent(in, stdout, attr.Size)
+				if err != nil {
+					errChan <- err
+					os.Remove(curLocal)
+					return
+				}
+
+				err = ack(stdin)
+				if err != nil {
+					errChan <- err
+					os.Remove(curLocal)
+					return
+				}
+
+				err = checkResponse(stdout)
+				if err != nil {
+					errChan <- err
+					os.Remove(curLocal)
+					return
+				}
+				curLocal = path.Dir(curLocal)
+				curRemote = path.Dir(curRemote)
+			}
+		}
 		err = session.Wait()
 		if err != nil {
 			errChan <- err
-			os.Remove(localPath)
+			os.Remove(curLocal)
 			return
 		}
 	}()
@@ -983,7 +888,6 @@ func wait(wg *sync.WaitGroup, ctx context.Context) error {
 func checkResponse(out io.Reader) error {
 	bytes := make([]uint8, 1)
 	_, err := out.Read(bytes)
-	//log.Infof("checkResponse:%d", n)
 	if err != nil {
 		return err
 	}
@@ -1012,7 +916,24 @@ func ack(in io.Writer) error {
 	return nil
 }
 
-func parseResponse(out io.Reader) (Attr, error) {
+func parseResponse(out io.Reader) error {
+	bytes := make([]uint8, 1)
+	n, err := out.Read(bytes)
+	if err != nil {
+		return err
+	}
+	log.Infof("n:%d", n)
+	if int(bytes[0]) != 0 {
+		bufferedReader := bufio.NewReader(out)
+		message, err := bufferedReader.ReadString('\n')
+		if err != nil {
+			return errors.New(message)
+		}
+	}
+	return nil
+}
+
+func parseAttr1(out io.Reader) (Attr, error) {
 	var attr Attr
 
 	bufferedReader := bufio.NewReader(out)
@@ -1020,6 +941,7 @@ func parseResponse(out io.Reader) (Attr, error) {
 	if err != nil {
 		return attr, err
 	}
+	log.Infof(message)
 	message = strings.ReplaceAll(message, "\n", "")
 	parts := strings.Split(message, " ")
 	commandTyp := string(parts[0][0])
@@ -1047,7 +969,7 @@ func parseResponse(out io.Reader) (Attr, error) {
 	return attr, nil
 }
 
-func parseTime(out io.Reader, attr *Attr) error {
+func parseMeta(out io.Reader, attr *Attr) error {
 	bufferedReader := bufio.NewReader(out)
 	message, err := bufferedReader.ReadString('\n')
 	if err != nil {
@@ -1055,39 +977,94 @@ func parseTime(out io.Reader, attr *Attr) error {
 	}
 	message = strings.ReplaceAll(message, "\n", "")
 	parts := strings.Split(message, " ")
-	if len(parts) != 4 || (len(parts) > 0 && !strings.HasPrefix(parts[0], T)) {
-		return errors.New(fmt.Sprintf("unable to parse message as time infos, message:%s", message))
-	}
+	attr.Typ = parseCommandType(message)
+	if attr.Typ == C || attr.Typ == D {
+		err = attr.SetMode(parts[0][1:])
+		if err != nil {
+			return err
+		}
+		err = attr.SetSize(parts[1])
+		if err != nil {
+			return err
+		}
+		attr.Name = parts[2]
+	} else if attr.Typ == E {
 
-	err = attr.SetTime(parts[0][1:], parts[2])
-	if err != nil {
-		return err
+	} else if attr.Typ == T {
+		err = attr.SetTime(parts[0][1:], parts[2])
+		if err != nil {
+			return err
+		}
+	} else {
+		return errors.New(fmt.Sprintf("invalid commandType message:[%s]", message))
 	}
 	return nil
 }
 
-func parseAttr(out io.Reader, attr *Attr) error {
-	bufferedReader := bufio.NewReader(out)
-	message, err := bufferedReader.ReadString('\n')
-	if err != nil {
-		return err
-	}
-	message = strings.ReplaceAll(message, "\n", "")
-	parts := strings.Split(message, " ")
-	if len(parts) != 3 || (len(parts) > 0 && (!strings.HasPrefix(parts[0], C) && !strings.HasPrefix(parts[0], D))) {
-		return errors.New(fmt.Sprintf("unable to parse message as attr infos,message:%s", message))
-	}
+//func parseTime(out io.Reader, attr *Attr) error {
+//	bufferedReader := bufio.NewReader(out)
+//	message, err := bufferedReader.ReadString('\n')
+//	if err != nil {
+//		return err
+//	}
+//	message = strings.ReplaceAll(message, "\n", "")
+//	parts := strings.Split(message, " ")
+//	if len(parts) != 4 || (len(parts) > 0 && !strings.HasPrefix(parts[0], T)) {
+//		return errors.New(fmt.Sprintf("unable to parse message as time infos, message:%s", message))
+//	}
+//
+//	attr.Typ = parseCommandType(message)
+//	if attr.Typ == NULL {
+//		return errors.New(fmt.Sprintf("invalid commandType:[%s]", message))
+//	}
+//	err = attr.SetTime(parts[0][1:], parts[2])
+//	if err != nil {
+//		return err
+//	}
+//	return nil
+//}
+//
+//func parseAttr(out io.Reader, attr *Attr) error {
+//	bufferedReader := bufio.NewReader(out)
+//	message, err := bufferedReader.ReadString('\n')
+//	if err != nil {
+//		return err
+//	}
+//	message = strings.ReplaceAll(message, "\n", "")
+//	parts := strings.Split(message, " ")
+//	if len(parts) != 3 || (len(parts) > 0 && (!strings.HasPrefix(parts[0], C) && !strings.HasPrefix(parts[0], D))) {
+//		return errors.New(fmt.Sprintf("unable to parse message as attr infos,message:%s", message))
+//	}
+//
+//	err = attr.SetMode(parts[0][1:])
+//	if err != nil {
+//		return err
+//	}
+//	err = attr.SetSize(parts[1])
+//	if err != nil {
+//		return err
+//	}
+//	attr.Name = parts[2]
+//	attr.Typ = parseCommandType(message)
+//	if attr.Typ == NULL {
+//		return errors.New(fmt.Sprintf("invalid commandType:[%s]", message))
+//	}
+//	return nil
+//}
 
-	err = attr.SetMode(parts[0][1:])
-	if err != nil {
-		return err
+func parseCommandType(s string) CommandType {
+	b := s[0]
+	if b == 'T' {
+		return T
+	} else if b == 'C' {
+		return C
+	} else if b == 'D' {
+		return D
+	} else if b == 'E' {
+		return E
+	} else {
+		return NULL
 	}
-	err = attr.SetSize(parts[1])
-	if err != nil {
-		return err
-	}
-	attr.Name = parts[2]
-	return nil
 }
 
 func parseContent(in io.Writer, out io.Reader, size int64) error {
