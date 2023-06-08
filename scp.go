@@ -149,11 +149,8 @@ func (scp *SCP) SwitchScpwFunc(ctx context.Context, localPath, remotePath string
 			return scp.Put(ctx, localPath, remotePath)
 		}
 	} else {
-		if remotePath[len(remotePath)-1] == '*' {
-			excludeRootDir = true
+		if remotePath[len(remotePath)-1] == '/' {
 			remotePath = remotePath[:len(remotePath)-1]
-		}
-		if excludeRootDir {
 			return scp.GetAll(ctx, localPath, remotePath)
 		} else {
 			return scp.Get(ctx, localPath, remotePath)
@@ -272,7 +269,7 @@ func (scp *SCP) PutAll(ctx context.Context, srcPath, dstPath string) error {
 						return
 					}
 				}
-				fmt.Printf("file:[%40s] size:[%15s]\n", file.Name, file.Size)
+				fmt.Printf("    file:[%40s] size:[%15s]\n", file.Name, file.Size)
 			case <-scpCh.exitChan:
 				//log.Errorf("E")
 				_, err = fmt.Fprintln(stdin, E)
@@ -553,7 +550,7 @@ func (scp *SCP) put(ctx context.Context, dstPath string, in io.Reader, mode stri
 			errChan <- err
 			return
 		}
-		fmt.Printf("file:[%40s] size:[%15d]\n", fileName, size)
+		fmt.Printf("    file:[%40s] size:[%15d]\n", fileName, size)
 	}()
 
 	go func() {
@@ -696,7 +693,7 @@ func (scp *SCP) Get(ctx context.Context, srcPath, dstPath string) error {
 			os.Remove(srcPath)
 			return
 		}
-		fmt.Printf("file:[%40s] size:[%15d]\n", path.Base(srcPath), attr.Size)
+		fmt.Printf("    file:[%40s] size:[%15d]\n", path.Base(srcPath), attr.Size)
 	}()
 	wg.Wait()
 	close(errChan)
@@ -800,6 +797,7 @@ func (scp *SCP) GetAll(ctx context.Context, localPath, remotePath string) error 
 					os.Remove(curLocal)
 					return
 				}
+				fmt.Printf("    file:[%40s] size:[%15d]\n", attr.Name, attr.Size)
 
 			} else if attr.Typ == D {
 				// mkdir dir
@@ -808,6 +806,7 @@ func (scp *SCP) GetAll(ctx context.Context, localPath, remotePath string) error 
 					errChan <- err
 					return
 				}
+				fmt.Printf("    file:[%40s] size:[%15d]\n", attr.Name, attr.Size)
 
 			} else if attr.Typ == E {
 				// cd ../

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"github.com/T-TRz879/scpw"
 	"github.com/manifoldco/promptui"
 	"github.com/urfave/cli/v2"
@@ -52,15 +53,19 @@ func Run(ctx *cli.Context) error {
 
 	templates := &promptui.SelectTemplates{
 		Label:    "{{ . }}?",
-		Active:   "▸ {{ .Name | cyan }} ({{ .Host | red }} - {{ .Typ | green }})",
-		Inactive: "  {{ .Name | cyan }} ({{ .Host | red }})",
-		Selected: " {{ .Name | red | cyan }}",
+		Active:   "🎈 {{ .Name | cyan }} ({{ .Host | red }} - {{ .Typ | green }})",
+		Inactive: "  {{ .Name | cyan }} ({{ .Host | red }} - {{ .Typ | green }})",
+		Selected: " {{ .Name | red | cyan }} ({{ .Host | red }} - {{ .Typ | green }})",
 		Details: `
 --------- SCPW Config ----------
 {{ "Name:" | faint }}	{{ .Name }}
 {{ "Address:" | faint }}	{{ .Host }}{{":"}}{{ .Port }}
 {{ "User:" | faint }}	{{ .User }}
-{{ "Type:" | faint }}   {{ .Typ }}`,
+{{ "Type:" | faint }}   {{ .Typ }}
+{{ range $k, $v := .LRMap }} 
+{{ "Local:" | faint }} {{ $v.Local }}  {{ "Remote:" | faint }} {{ $v.Remote -}} 
+{{ end }}
+`,
 	}
 
 	searcher := func(input string, index int) bool {
@@ -95,6 +100,7 @@ func initScpCli(ctx *cli.Context, node *scpw.Node) error {
 	scpwCli := scpw.NewSCP(ssh, keepTime)
 	for _, lr := range node.LRMap {
 		local, remote := lr.Local, lr.Remote
+		fmt.Printf("local:[%s] remote:[%s]\n", local, remote)
 		err := scpwCli.SwitchScpwFunc(ctx.Context, local, remote, node.Typ)
 		if err != nil {
 			return err

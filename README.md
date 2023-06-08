@@ -36,7 +36,7 @@ config example:
   - { local: /tmp/* , remote: /tmp/A/ }
   - { local: /tmp/a.txt , remote: /tmp/b.txt }
 
-
+# Remote folders must end with /
 - name: serverB
   user: appAdmin
   host: 10.0.16.17
@@ -44,9 +44,7 @@ config example:
   password: 123456
   type: GET
   lr-map:
-  # Get all content from remote /root/lib to the local /home/appAdmin/lib directory
-  - { local: /home/appAdmin/lib/ , remote: /root/lib/* }
-  # Get all content from remote /root/lib (include lib dir) to the local /home/appAdmin directory
+  # Get all content from remote /root/lib to the local /home/appAdmin directory
   - { local: /home/appAdmin/ , remote: /root/lib/ }
   - { local: /home/appAdmin/redis.conf , remote: /root/redis.conf }
 
