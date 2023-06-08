@@ -31,8 +31,10 @@ builds:
     ignore:
       - goos: freebsd
         goarch: mips64
-      - goos: windows
+      - goos: freebsd
         goarch: arm64
+      - goos: freebsd
+        goarch: amd64
 
 archives:
   - id: scpw
