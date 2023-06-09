@@ -2,9 +2,9 @@ package scpw
 
 import (
 	"gopkg.in/yaml.v2"
-	"io/ioutil"
+	"os"
 	"os/user"
-	"path"
+	"path/filepath"
 )
 
 type SCPWType = string
@@ -58,14 +58,14 @@ func LoadConfigBytes(names ...string) ([]byte, error) {
 	}
 	// homedir
 	for i := range names {
-		sshw, err := ioutil.ReadFile(path.Join(u.HomeDir, names[i]))
+		sshw, err := os.ReadFile(filepath.Join(u.HomeDir, names[i]))
 		if err == nil {
 			return sshw, nil
 		}
 	}
 	// relative
 	for i := range names {
-		sshw, err := ioutil.ReadFile(names[i])
+		sshw, err := os.ReadFile(names[i])
 		if err == nil {
 			return sshw, nil
 		}

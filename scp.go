@@ -8,7 +8,6 @@ import (
 	"golang.org/x/crypto/ssh"
 	"io"
 	"os"
-	"path"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -149,7 +148,8 @@ func (scp *SCP) SwitchScpwFunc(ctx context.Context, localPath, remotePath string
 			return scp.Put(ctx, localPath, remotePath)
 		}
 	} else {
-		if remotePath[len(remotePath)-1] == '/' {
+		last := remotePath[len(remotePath)-1]
+		if last == '\\' || last == '/' {
 			remotePath = remotePath[:len(remotePath)-1]
 			return scp.GetAll(ctx, localPath, remotePath)
 		} else {
@@ -165,7 +165,7 @@ func (scp *SCP) PutAllExcludeRoot(ctx context.Context, srcPath, dstPath string) 
 		return err
 	}
 	for _, entry := range child {
-		l, r := path.Join(srcPath, entry.Name()), path.Join(dstPath, entry.Name())
+		l, r := filepath.Join(srcPath, entry.Name()), filepath.Join(dstPath, entry.Name())
 		if entry.IsDir() {
 			err = scp.PutAll(ctx, l, r)
 		} else {
@@ -327,12 +327,12 @@ func WalkTree(ctx context.Context, scpChan *scpChan, rootParent, root, dstPath s
 		var dirs []os.DirEntry
 		for _, obj := range child {
 			if !obj.IsDir() {
-				filePath := path.Join(root, obj.Name())
+				filePath := filepath.Join(root, obj.Name())
 				name, mode, size, atime, mtime, err := StatFile(filePath)
 				if err != nil {
 					return nil
 				}
-				scpChan.fileChan <- NewFile(name, filePath, path.Join(dstPath, name), mode, atime, mtime, size, false)
+				scpChan.fileChan <- NewFile(name, filePath, filepath.Join(dstPath, name), mode, atime, mtime, size, false)
 			} else {
 				dirs = append(dirs, obj)
 			}
@@ -342,7 +342,7 @@ func WalkTree(ctx context.Context, scpChan *scpChan, rootParent, root, dstPath s
 			return err
 		}
 		for _, dir := range dirs {
-			err := WalkTree(ctx, scpChan, rootParent, path.Join(root, dir.Name()), path.Join(dstPath, dir.Name()))
+			err := WalkTree(ctx, scpChan, rootParent, filepath.Join(root, dir.Name()), filepath.Join(dstPath, dir.Name()))
 			if err != nil {
 				return err
 			}
@@ -693,7 +693,7 @@ func (scp *SCP) Get(ctx context.Context, srcPath, dstPath string) error {
 			os.Remove(srcPath)
 			return
 		}
-		fmt.Printf("    file:[%40s] size:[%15d]\n", path.Base(srcPath), attr.Size)
+		fmt.Printf("    file:[%40s] size:[%15d]\n", filepath.Base(srcPath), attr.Size)
 	}()
 	wg.Wait()
 	close(errChan)
@@ -745,7 +745,7 @@ func (scp *SCP) GetAll(ctx context.Context, localPath, remotePath string) error 
 			return
 		}
 
-		curLocal, curRemote := localPath, path.Dir(path.Clean(remotePath))
+		curLocal, curRemote := localPath, filepath.Dir(filepath.Clean(remotePath))
 		for {
 			var attr Attr
 			if scp.KeepTime {
@@ -778,8 +778,8 @@ func (scp *SCP) GetAll(ctx context.Context, localPath, remotePath string) error 
 					errChan <- err
 					return
 				}
-				curLocal = path.Join(curLocal, attr.Name)
-				curRemote = path.Join(curRemote, attr.Name)
+				curLocal = filepath.Join(curLocal, attr.Name)
+				curRemote = filepath.Join(curRemote, attr.Name)
 			}
 
 			var in *os.File
@@ -810,8 +810,8 @@ func (scp *SCP) GetAll(ctx context.Context, localPath, remotePath string) error 
 
 			} else if attr.Typ == E {
 				// cd ../
-				curLocal = path.Dir(path.Clean(curLocal))
-				curRemote = path.Dir(path.Clean(curRemote))
+				curLocal = filepath.Dir(filepath.Clean(curLocal))
+				curRemote = filepath.Dir(filepath.Clean(curRemote))
 			} else {
 				// maybe error
 				errChan <- errors.New(fmt.Sprintf("invalid type:[%s]", attr.Typ))
@@ -847,8 +847,8 @@ func (scp *SCP) GetAll(ctx context.Context, localPath, remotePath string) error 
 					os.Remove(curLocal)
 					return
 				}
-				curLocal = path.Dir(curLocal)
-				curRemote = path.Dir(curRemote)
+				curLocal = filepath.Dir(curLocal)
+				curRemote = filepath.Dir(curRemote)
 			}
 		}
 		err = session.Wait()

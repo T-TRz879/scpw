@@ -4,6 +4,7 @@ import (
 	"os"
 	"strconv"
 	"syscall"
+	"time"
 )
 
 func StatTimeV2(file os.FileInfo) (string, string) {

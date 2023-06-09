@@ -8,7 +8,7 @@ import (
 	"golang.org/x/crypto/ssh"
 	"math/rand"
 	"os"
-	"path"
+	"path/filepath"
 	"runtime"
 	"strconv"
 	"time"
@@ -154,5 +154,5 @@ func randName(root string) string {
 	for i := 0; i < len(res); i++ {
 		res[i] = letters[rand.Intn(len(letters))]
 	}
-	return path.Join(root, string(res))
+	return filepath.Join(root, string(res))
 }
