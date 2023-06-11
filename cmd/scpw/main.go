@@ -98,10 +98,16 @@ func initScpCli(ctx *cli.Context, node *scpw.Node) error {
 	}
 	keepTime := ctx.Bool("keep-time")
 	scpwCli := scpw.NewSCP(ssh, keepTime)
+	errCh := make(chan error, len(node.LRMap))
 	for _, lr := range node.LRMap {
-		local, remote := lr.Local, lr.Remote
-		fmt.Printf("local:[%s] remote:[%s]\n", local, remote)
-		err := scpwCli.SwitchScpwFunc(ctx.Context, local, remote, node.Typ)
+		go func(lr scpw.LRMap) {
+			local, remote := lr.Local, lr.Remote
+			fmt.Printf("local:[%s] remote:[%s]\n", local, remote)
+			errCh <- scpwCli.SwitchScpwFunc(ctx.Context, local, remote, node.Typ)
+		}(lr)
+	}
+	for i := 0; i < len(node.LRMap); i++ {
+		err := <-errCh
 		if err != nil {
 			return err
 		}
