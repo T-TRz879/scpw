@@ -33,7 +33,7 @@ func TestParseInt64(t *testing.T) {
 }
 
 func TestParseInt8(t *testing.T) {
-	a, err := ParseOctal("0777")
+	a, err := ParseUnit32("0777")
 	if err != nil {
 		panic(err)
 	}

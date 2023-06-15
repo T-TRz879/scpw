@@ -60,7 +60,7 @@ type Attr struct {
 }
 
 func (a *Attr) SetMode(str string) error {
-	mode, err := ParseOctal(str)
+	mode, err := ParseUnit32(str)
 	if err != nil {
 		return err
 	}

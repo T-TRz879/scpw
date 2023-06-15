@@ -117,9 +117,12 @@ func StatFile(root string) (string, string, string, string, string, error) {
 	return name, mode, size, atime, mtime, nil
 }
 
-func ParseOctal(str string) (res int64, err error) {
-	res, err = strconv.ParseInt(str, 0, 64)
-	return res, err
+func ParseUnit32(str string) (uint32, error) {
+	res, err := strconv.ParseUint(str, 8, 32)
+	if err != nil {
+		return uint32(0), err
+	}
+	return uint32(res), err
 }
 
 func ParseInt64(str string) (int64, error) {
@@ -127,25 +130,6 @@ func ParseInt64(str string) (int64, error) {
 	//res, err = strconv.ParseInt(str, 10, 64)
 	//return res, err
 	return int64(num), err
-}
-
-func ParseMode(s string) os.FileMode {
-	mode := make([]byte, 3)
-	for i := 0; i < 3; i++ {
-		cur := 0
-		if s[i*3] != '-' {
-			cur += 4
-		}
-		if s[i*3+1] != '-' {
-			cur += 2
-		}
-		if s[i*3+2] != '-' {
-			cur += 1
-		}
-		mode[i] = byte(cur + '0')
-	}
-	res, _ := strconv.Atoi(string(mode))
-	return os.FileMode(res)
 }
 
 func randName(root string) string {

@@ -1,18 +1,19 @@
 package main
 
 import (
-	"fmt"
 	"github.com/T-TRz879/scpw"
 	"github.com/manifoldco/promptui"
 	"github.com/urfave/cli/v2"
 	"log"
 	"os"
 	"strings"
+	"sync"
 )
 
 const (
 	cliName        = "scpw"
 	cliDescription = "Simplify scp operations"
+	threads        = 5
 )
 
 func main() {
@@ -98,19 +99,26 @@ func initScpCli(ctx *cli.Context, node *scpw.Node) error {
 	}
 	keepTime := ctx.Bool("keep-time")
 	scpwCli := scpw.NewSCP(ssh, keepTime)
-	errCh := make(chan error, len(node.LRMap))
+
+	wg := sync.WaitGroup{}
+	todo := make(chan scpw.LRMap, 5)
+	for i := 0; i < threads; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for lr := range todo {
+				local, remote := lr.Local, lr.Remote
+				err := scpwCli.SwitchScpwFunc(ctx.Context, local, remote, node.Typ)
+				if err != nil {
+					panic(err)
+				}
+			}
+		}()
+	}
 	for _, lr := range node.LRMap {
-		go func(lr scpw.LRMap) {
-			local, remote := lr.Local, lr.Remote
-			fmt.Printf("local:[%s] remote:[%s]\n", local, remote)
-			errCh <- scpwCli.SwitchScpwFunc(ctx.Context, local, remote, node.Typ)
-		}(lr)
+		todo <- lr
 	}
-	for i := 0; i < len(node.LRMap); i++ {
-		err := <-errCh
-		if err != nil {
-			return err
-		}
-	}
+	close(todo)
+	wg.Wait()
 	return nil
 }
