@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/google/uuid"
 	"golang.org/x/crypto/ssh"
 	"io"
 	"os"
@@ -127,7 +128,7 @@ func NewSCP(cli *ssh.Client, keepTime bool) *SCP {
 	}
 }
 
-func (scp *SCP) SwitchScpwFunc(ctx context.Context, localPath, remotePath string, typ SCPWType) error {
+func (scp *SCP) SwitchScpwFunc(ctx context.Context, localPath, remotePath string, typ SCPWType) (err error) {
 	excludeRootDir := false
 	if typ == PUT {
 		if localPath[len(localPath)-1] == '*' {
@@ -148,14 +149,33 @@ func (scp *SCP) SwitchScpwFunc(ctx context.Context, localPath, remotePath string
 			return scp.Put(ctx, localPath, remotePath)
 		}
 	} else {
+		localTmp := filepath.Join(filepath.Dir(localPath), uuid.NewString())
+		defer func() {
+			if err != nil {
+				err = scp.replace(localTmp, localPath)
+			}
+		}()
 		last := remotePath[len(remotePath)-1]
 		if last == '\\' || last == '/' {
 			remotePath = remotePath[:len(remotePath)-1]
-			return scp.GetAll(ctx, localPath, remotePath)
+			err = scp.GetAll(ctx, localPath, remotePath)
 		} else {
-			return scp.Get(ctx, localPath, remotePath)
+			err = scp.Get(ctx, localPath, remotePath)
 		}
 	}
+	return err
+}
+
+func (scp *SCP) replace(tmp, local string) error {
+	newTmp := filepath.Join(filepath.Dir(local), uuid.NewString())
+	_, err := os.Stat(local)
+	if err == nil {
+		err := os.Rename(local, newTmp)
+		if err != nil {
+			return err
+		}
+	}
+	return os.Rename(tmp, local)
 }
 
 func (scp *SCP) PutAllExcludeRoot(ctx context.Context, srcPath, dstPath string) error {
