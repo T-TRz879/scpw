@@ -82,6 +82,16 @@ func TestPutAll(t *testing.T) {
 	assert.Nil(t, err)
 }
 
+func TestGetSwitch(t *testing.T) {
+	// keep remote server has remoteFile
+	local, remote := "/tmp/a.txt", "/tmp/a.txt"
+	ssh, err := NewSSH(testNode)
+	assert.Nil(t, err)
+	scpwCli := NewSCP(ssh, true)
+	err = scpwCli.SwitchScpwFunc(context.Background(), local, remote, GET)
+	assert.Nil(t, err)
+}
+
 func TestGet(t *testing.T) {
 	// keep remote server has remoteFile
 	local, remote := "/tmp/a.txt", "/tmp/a.txt"
@@ -118,6 +128,18 @@ func TestGetRemoteIsDir(t *testing.T) {
 	scpwCli := NewSCP(ssh, true)
 	err = scpwCli.Get(context.Background(), local, remote)
 	assert.NotNil(t, err)
+}
+
+func TestGetAllSwitch(t *testing.T) {
+	local := randName("/tmp")
+	os.Mkdir(local, os.FileMode(uint32(0700)))
+	log.Infof("local:%s", local)
+	remote := "/tmp/scpw/"
+	ssh, err := NewSSH(testNode)
+	assert.Nil(t, err)
+	scpwCli := NewSCP(ssh, true)
+	err = scpwCli.SwitchScpwFunc(context.Background(), local, remote, GET)
+	assert.Nil(t, err)
 }
 
 func TestGetAll(t *testing.T) {

@@ -150,17 +150,22 @@ func (scp *SCP) SwitchScpwFunc(ctx context.Context, localPath, remotePath string
 		}
 	} else {
 		localTmp := filepath.Join(filepath.Dir(localPath), uuid.NewString())
-		defer func() {
-			if err != nil {
-				err = scp.replace(localTmp, localPath)
-			}
-		}()
 		last := remotePath[len(remotePath)-1]
 		if last == '\\' || last == '/' {
 			remotePath = remotePath[:len(remotePath)-1]
-			err = scp.GetAll(ctx, localPath, remotePath)
+			err := os.Mkdir(localTmp, os.FileMode(uint32(0755)))
+			if err != nil {
+				return err
+			}
+			err = scp.GetAll(ctx, localTmp, remotePath)
+			if err == nil {
+				err = scp.replaceDir(localTmp, localPath, remotePath)
+			}
 		} else {
-			err = scp.Get(ctx, localPath, remotePath)
+			err = scp.Get(ctx, localTmp, remotePath)
+			if err == nil {
+				err = scp.replace(localTmp, localPath)
+			}
 		}
 	}
 	return err
@@ -176,6 +181,25 @@ func (scp *SCP) replace(tmp, local string) error {
 		}
 	}
 	return os.Rename(tmp, local)
+}
+
+func (scp *SCP) replaceDir(tmp, local, remote string) error {
+	dirname := filepath.Base(filepath.Clean(remote))
+	old := filepath.Join(local, dirname)
+	newTmp := filepath.Join(local, uuid.NewString())
+	_, err := os.Stat(old)
+	if err == nil {
+		err := os.Rename(old, newTmp)
+		if err != nil {
+			return err
+		}
+	}
+	err = os.Rename(filepath.Join(tmp, dirname), old)
+	if err != nil {
+		return err
+	}
+	err = os.RemoveAll(tmp)
+	return err
 }
 
 func (scp *SCP) PutAllExcludeRoot(ctx context.Context, srcPath, dstPath string) error {
