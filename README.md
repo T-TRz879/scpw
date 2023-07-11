@@ -2,6 +2,8 @@
 
 scp client wrapper for automatic put or get.
 
+![usage](./assets/scpw.gif)
+
 ## install
 
 use `go get`
