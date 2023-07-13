@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/crypto/ssh"
 	"io"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -105,12 +106,30 @@ type SCP struct {
 }
 
 func NewSSH(node *Node) (*ssh.Client, error) {
+	var auth []ssh.AuthMethod
+	if node.KeyPath != "" {
+		privateKeyBytes, err := os.ReadFile(node.KeyPath)
+		if err != nil {
+			return nil, err
+		}
+
+		// Parse the private key
+		privateKey, err := ssh.ParsePrivateKey(privateKeyBytes)
+		if err != nil {
+			return nil, err
+		}
+		auth = append(auth, ssh.PublicKeys(privateKey))
+	} else {
+		auth = append(auth, ssh.Password(node.Password))
+	}
 	config := &ssh.ClientConfig{
 		User: node.User,
-		Auth: []ssh.AuthMethod{
-			ssh.Password(node.Password),
+		Auth: auth,
+		HostKeyCallback: func(hostname string, remote net.Addr, key ssh.PublicKey) error {
+			// Always accept server's public key.
+			// In real world usage, don't do this! You should validate the key.
+			return nil
 		},
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 	}
 	client, err := ssh.Dial("tcp", Addr(node.Host, node.Port), config)
 	return client, err
@@ -255,7 +274,6 @@ func (scp *SCP) PutAll(ctx context.Context, srcPath, dstPath string) error {
 		for {
 			select {
 			case file := <-scpCh.fileChan:
-				//log.Errorf("remote:%s", file.RemotePath)
 				if scp.KeepTime {
 					_, err = fmt.Fprintln(stdin, "T"+file.Mtime, "0", file.Atime, "0")
 					if err != nil {
@@ -315,7 +333,6 @@ func (scp *SCP) PutAll(ctx context.Context, srcPath, dstPath string) error {
 				}
 				fmt.Printf("    file:[%40s] size:[%15s]\n", file.Name, file.Size)
 			case <-scpCh.exitChan:
-				//log.Errorf("E")
 				_, err = fmt.Fprintln(stdin, E)
 				if err != nil {
 					errChan <- err
@@ -796,7 +813,6 @@ func (scp *SCP) GetAll(ctx context.Context, localPath, remotePath string) error 
 				err = parseMeta(stdout, &attr)
 				if err != nil {
 					if err.Error() == "EOF" {
-						log.Debug("GetAll success")
 						break
 					}
 					errChan <- err
