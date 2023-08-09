@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/T-TRz879/scpw"
+	"github.com/google/gops/agent"
 	"github.com/manifoldco/promptui"
 	"github.com/urfave/cli/v2"
 	"log"
@@ -13,15 +14,15 @@ import (
 const (
 	cliName        = "scpw"
 	cliDescription = "Simplify scp operations"
-	threads        = 5
+	threads        = 10
 )
 
 func main() {
-	//if err := agent.Listen(agent.Options{
-	//	ShutdownCleanup: true, // automatically closes on os.Interrupt
-	//}); err != nil {
-	//	log.Fatal(err)
-	//}
+	if err := agent.Listen(agent.Options{
+		ShutdownCleanup: true, // automatically closes on os.Interrupt
+	}); err != nil {
+		log.Fatal(err)
+	}
 	cli.VersionFlag = &cli.BoolFlag{
 		Name: "version", Aliases: []string{"V"},
 		Usage: "print version only",
@@ -93,22 +94,24 @@ func Run(ctx *cli.Context) error {
 }
 
 func initScpCli(ctx *cli.Context, node *scpw.Node) error {
-	ssh, err := scpw.NewSSH(node)
-	if err != nil {
-		return err
-	}
-	keepTime := ctx.Bool("keep-time")
-	scpwCli := scpw.NewSCP(ssh, keepTime)
-
 	wg := sync.WaitGroup{}
 	todo := make(chan scpw.LRMap, 5)
 	for i := 0; i < threads; i++ {
 		wg.Add(1)
 		go func() {
-			defer wg.Done()
+			ssh, err := scpw.NewSSH(node)
+			if err != nil {
+				panic(err)
+			}
+			keepTime := ctx.Bool("keep-time")
+			scpwCli := scpw.NewSCP(ssh, keepTime)
+			defer func() {
+				ssh.Close()
+				wg.Done()
+			}()
 			for lr := range todo {
 				local, remote := lr.Local, lr.Remote
-				err := scpwCli.SwitchScpwFunc(ctx.Context, local, remote, node.Typ)
+				err = scpwCli.SwitchScpwFunc(ctx.Context, local, remote, node.Typ)
 				if err != nil {
 					panic(err)
 				}

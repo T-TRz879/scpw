@@ -132,7 +132,7 @@ func ParseInt64(str string) (int64, error) {
 	return int64(num), err
 }
 
-func randName(root string) string {
+func RandName(root string) string {
 	rand.Seed(time.Now().Unix())
 	res := make([]byte, 5)
 	for i := 0; i < len(res); i++ {
