@@ -1,6 +1,7 @@
 # scpw
 
 ![GitHub](https://img.shields.io/github/license/T-TRz879/scpw) ![GitHub tag (latest by date)](https://img.shields.io/github/v/tag/T-TRz879/scpw)
+[![Coverage Status](https://coveralls.io/repos/github/T-TRz879/scpw/badge.svg?branch=main)](https://coveralls.io/github/T-TRz879/scpw?branch=main)
 
 scp client wrapper for automatic put or get.
 
