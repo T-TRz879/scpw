@@ -1,22 +1,23 @@
-name: Test
-on: [push, pull_request]
-env:
-  GITHUB_TOKEN: ${{ secrets.COVERALLS_TOKEN }}
-  GO111MODULE: "on"
+name: SCPW Test Coveralls
+run-name: ${{ github.actor }} is Coveralls GitHub Actions 🚀
+on: [ "push", "pull_request" ]
 jobs:
-  test:
-    name: Test with Coverage
+  SCPW-Test-Actions:
     runs-on: ubuntu-latest
     steps:
       - name: Set up Go
         uses: actions/setup-go@v1
         with:
-          go-version: "1.20"
-      - name: Check out code
-        uses: actions/checkout@v2
+          go-version: "1.19"
+      - name: Check out repository code
+        uses: actions/checkout@v3
       - name: Install dependencies
         run: |
           go mod download
+      - name: Prepare test-case
+        run: |
+          chmod +x ${{ github.workspace }}/.github/script/test/prepare.sh
+          sh ${{ github.workspace }}/.github/script/test/prepare.sh
       - name: Run Unit Tests
         run: |
           go test -tags noasm -race -covermode atomic -coverprofile=profile.cov ./...
