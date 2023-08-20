@@ -52,7 +52,7 @@ func TestPutLocalIsDir(t *testing.T) {
 
 func TestPutAll(t *testing.T) {
 	remote := RandName("/tmp")
-	os.MkdirAll(remote, 0755)
+	os.MkdirAll(remote, 0777)
 	local := baseDir
 	ssh, err := NewSSH(testNode)
 	assert.Nil(t, err)
@@ -111,7 +111,7 @@ func TestGetRemoteIsDir(t *testing.T) {
 
 func TestGetAllSwitch(t *testing.T) {
 	local := RandName("/tmp")
-	os.Mkdir(local, os.FileMode(uint32(0700)))
+	os.Mkdir(local, os.FileMode(uint32(0777)))
 	log.Infof("local:%s", local)
 	remote := filepath.Join(baseDir, "dir1/")
 	ssh, err := NewSSH(testNode)
@@ -123,7 +123,7 @@ func TestGetAllSwitch(t *testing.T) {
 
 func TestGetAll(t *testing.T) {
 	local := RandName("/tmp")
-	os.Mkdir(local, os.FileMode(uint32(0700)))
+	os.Mkdir(local, os.FileMode(uint32(0777)))
 	log.Infof("local:%s", local)
 	remote := baseDir
 	ssh, err := NewSSH(testNode)
