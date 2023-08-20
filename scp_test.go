@@ -51,7 +51,9 @@ func TestPutLocalIsDir(t *testing.T) {
 }
 
 func TestPutAll(t *testing.T) {
-	local, remote := baseDir, "/tmp"
+	remote := RandName("/tmp")
+	os.MkdirAll(remote, 0755)
+	local := baseDir
 	ssh, err := NewSSH(testNode)
 	assert.Nil(t, err)
 	scpwCli := NewSCP(ssh, true)
@@ -111,7 +113,7 @@ func TestGetAllSwitch(t *testing.T) {
 	local := RandName("/tmp")
 	os.Mkdir(local, os.FileMode(uint32(0700)))
 	log.Infof("local:%s", local)
-	remote := baseDir
+	remote := filepath.Join(baseDir, "dir1/")
 	ssh, err := NewSSH(testNode)
 	assert.Nil(t, err)
 	scpwCli := NewSCP(ssh, true)
