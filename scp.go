@@ -614,17 +614,18 @@ func (scp *SCP) put(ctx context.Context, dstPath string, in io.Reader, mode stri
 		fmt.Printf("    file:[%40s] size:[%15d]\n", fileName, size)
 	}()
 
+	var err2 error
 	go func() {
 		defer wg.Done()
-		err = session.Run(fmt.Sprintf("scp -t%s%q", scp.TimeOption, dstPath))
-		if err != nil {
-			errChan <- err
+		err2 = session.Run(fmt.Sprintf("scp -t%s%q", scp.TimeOption, dstPath))
+		if err2 != nil {
+			errChan <- err2
 			return
 		}
 
-		err = checkResponse(stdout)
-		if err != nil {
-			errChan <- err
+		err2 = checkResponse(stdout)
+		if err2 != nil {
+			errChan <- err2
 			return
 		}
 	}()
