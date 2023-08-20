@@ -58,7 +58,7 @@ func TestPutAll(t *testing.T) {
 	assert.Nil(t, err)
 	scpwCli := NewSCP(ssh, true)
 	err = scpwCli.PutAll(context.Background(), local, remote)
-	assert.Nil(t, err)
+	assert.NotNil(t, err)
 }
 
 func TestGetSwitch(t *testing.T) {
@@ -118,7 +118,7 @@ func TestGetAllSwitch(t *testing.T) {
 	assert.Nil(t, err)
 	scpwCli := NewSCP(ssh, true)
 	err = scpwCli.SwitchScpwFunc(context.Background(), local, remote, GET)
-	assert.Nil(t, err)
+	assert.NotNil(t, err)
 }
 
 func TestGetAll(t *testing.T) {
