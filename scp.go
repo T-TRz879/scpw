@@ -430,11 +430,11 @@ func (scp *SCP) Put(ctx context.Context, srcPath, dstPath string) error {
 	}
 	mode, err := FileModeV1(resource.Path)
 	if err != nil {
-		panic(err)
+		return err
 	}
 	open, err := os.Open(resource.Path)
 	if err != nil {
-		panic(err)
+		return err
 	}
 	return scp.put(ctx, dstPath, open, mode, resource.Size(), atime, mtime)
 }
