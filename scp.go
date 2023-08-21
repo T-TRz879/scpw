@@ -416,109 +416,6 @@ func WalkTree(ctx context.Context, scpChan *scpChan, rootParent, root, dstPath s
 	}
 }
 
-func (scp *SCP) PutDir(ctx context.Context, localPath, remotePath string) error {
-	_, mode, atime, mtime, isDir, err := StatDirMeta(localPath)
-	if err != nil {
-		return err
-	}
-	if !isDir {
-		return errors.New(fmt.Sprintf("local:[%s] is not dir", localPath))
-	}
-	return scp.putDir(ctx, remotePath, mode, atime, mtime)
-}
-
-func (scp *SCP) putDir(ctx context.Context, dstPath string, mode string, atime, mtime string) error {
-	wg := sync.WaitGroup{}
-	session, err := scp.NewSession()
-	if err != nil {
-		return err
-	}
-	defer session.Close()
-	stdout, err := session.StdoutPipe()
-	if err != nil {
-		return err
-	}
-	stdin, err := session.StdinPipe()
-	if err != nil {
-		return err
-	}
-	errChan := make(chan error, 2)
-
-	fileName := filepath.Base(dstPath)
-
-	wg.Add(2)
-	go func() {
-		defer func() {
-			wg.Done()
-		}()
-		defer stdin.Close()
-
-		if scp.KeepTime {
-			// T+Mtime 0 Atime 0
-			_, err = fmt.Fprintln(stdin, "T"+mtime, "0", atime, "0")
-			if err != nil {
-				errChan <- err
-				return
-			}
-
-			err = checkResponse(stdout)
-			if err != nil {
-				errChan <- err
-				return
-			}
-		}
-
-		// C+MODE SIZE NAME
-		_, err = fmt.Fprintln(stdin, "D"+mode, 0, fileName)
-		if err != nil {
-			errChan <- err
-			return
-		}
-
-		err = checkResponse(stdout)
-		if err != nil {
-			errChan <- err
-			return
-		}
-
-		_, err = fmt.Fprintln(stdin, "E")
-		if err != nil {
-			errChan <- err
-			return
-		}
-
-		err = checkResponse(stdout)
-		if err != nil {
-			errChan <- err
-			return
-		}
-
-	}()
-
-	go func() {
-		defer wg.Done()
-		err = session.Run(fmt.Sprintf("scp -rt%s%q", scp.TimeOption, dstPath))
-		if err != nil {
-			errChan <- err
-			return
-		}
-
-		err = checkResponse(stdout)
-		if err != nil {
-			errChan <- err
-			return
-		}
-	}()
-	wg.Wait()
-	close(errChan)
-	for err := range errChan {
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 func (scp *SCP) Put(ctx context.Context, srcPath, dstPath string) error {
 	resource, err := NewResource(srcPath)
 	if err != nil {
@@ -767,7 +664,7 @@ func (scp *SCP) Get(ctx context.Context, srcPath, dstPath string) error {
 	return nil
 }
 
-func (scp *SCP) GetAll(ctx context.Context, localPath, remotePath string) error {
+func (scp *SCP) GetAll(ctx context.Context, loca /**/ lPath, remotePath string) error {
 	session, err := scp.NewSession()
 	if err != nil {
 		return err
@@ -927,22 +824,6 @@ func (scp *SCP) GetAll(ctx context.Context, localPath, remotePath string) error 
 		}
 	}
 	return nil
-}
-
-func wait(wg *sync.WaitGroup, ctx context.Context) error {
-	c := make(chan struct{})
-	go func() {
-		defer close(c)
-		wg.Wait()
-	}()
-
-	select {
-	case <-c:
-		return nil
-
-	case <-ctx.Done():
-		return ctx.Err()
-	}
 }
 
 func checkResponse(out io.Reader) error {

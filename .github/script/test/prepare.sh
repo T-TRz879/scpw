@@ -19,20 +19,25 @@ fi
 
 sudo useradd -m -s /bin/bash -p $(openssl passwd -1 "scpwuser123") scpwuser
 
-cd /tmp
-mkdir scpw-test-dir
-cd scpw-test-dir
-mkdir dir1
-echo "12345" > file1
-mkdir dir1/dir1_1
-echo "12345" > dir1/file1_1
-echo "12345" > dir1/file1_2
-mkdir dir1/dir1_2
-
-echo "用户和工作目录创建完成！"
-
-# 到 /home/test1 和 /home/test2 目录下
-cd /tmp/scpw-test-dir
-stat .
+mkdir /tmp/scpw-local-dir
+cd /tmp/scpw-local-dir
+sudo chmod -R 777 .
 pwd
+stat .
+
+mkdir /tmp/scpw-remote-dir
+cd /tmp/scpw-remote-dir
+sudo chmod -R 777 .
+pwd
+stat .
+
+mkdir /tmp/no-permission-dir
+cd /tmp/no-permission-dir
+touch np-file1
+mkdir np-dir1
+sudo chmod -R o-rwx /tmp/no-permission-dir
 tree -hp
+
+touch /tmp/no-permission-file
+sudo chmod o-rwx /tmp/no-permission-file
+stat /tmp/no-permission-file

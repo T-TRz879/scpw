@@ -134,7 +134,7 @@ func ParseInt64(str string) (int64, error) {
 
 func RandName(root string) string {
 	rand.Seed(time.Now().Unix())
-	res := make([]byte, 5)
+	res := make([]byte, 10)
 	for i := 0; i < len(res); i++ {
 		res[i] = letters[rand.Intn(len(letters))]
 	}
