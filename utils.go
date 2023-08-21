@@ -4,14 +4,13 @@ import (
 	"errors"
 	"fmt"
 	"github.com/go-cmd/cmd"
+	"github.com/google/uuid"
 	"github.com/mattn/go-isatty"
 	"golang.org/x/crypto/ssh"
-	"math/rand"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strconv"
-	"time"
 )
 
 var (
@@ -133,10 +132,5 @@ func ParseInt64(str string) (int64, error) {
 }
 
 func RandName(root string) string {
-	rand.Seed(time.Now().Unix())
-	res := make([]byte, 10)
-	for i := 0; i < len(res); i++ {
-		res[i] = letters[rand.Intn(len(letters))]
-	}
-	return filepath.Join(root, string(res))
+	return filepath.Join(root, uuid.NewString())
 }

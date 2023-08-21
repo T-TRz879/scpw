@@ -118,7 +118,6 @@ func TestPutAll(t *testing.T) {
 
 func TestGetFile(t *testing.T) {
 	local, remote := RandName("/tmp"), RandName(baseRemoteDir)
-	assert.Nil(t, mkdir(local))
 	assert.Nil(t, writeFile(remote))
 	ssh, err := NewSSH(testNode)
 	assert.Nil(t, err)
