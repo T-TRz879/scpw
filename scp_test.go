@@ -25,6 +25,14 @@ func writeFile(name string) error {
 	return os.WriteFile(name, []byte{1, 2, 3, 4}, os.FileMode(0777))
 }
 
+func mkdir(name string) error {
+	err := os.Mkdir(name, os.FileMode(0777))
+	if err != nil {
+		return err
+	}
+	return os.Chmod(name, os.FileMode(0777)|os.FileMode(02))
+}
+
 func TestAttr(t *testing.T) {
 	attr := Attr{}
 
@@ -90,7 +98,7 @@ func TestPutFileLocalIsDir(t *testing.T) {
 
 func TestPutAll(t *testing.T) {
 	local, remote := baseLocalDir, RandName("/tmp")
-	assert.Nil(t, os.Mkdir(remote, os.FileMode(0777)))
+	assert.Nil(t, mkdir(remote))
 	ssh, err := NewSSH(testNode)
 	assert.Nil(t, err)
 	scpwCli := NewSCP(ssh, true)
@@ -160,7 +168,7 @@ func TestGetFileRemoteIsDir(t *testing.T) {
 
 func TestGetAll(t *testing.T) {
 	local := baseRemoteDir
-	assert.Nil(t, os.Mkdir(local, os.FileMode(0777)))
+	assert.Nil(t, mkdir(local))
 	remote := baseLocalDir
 	ssh, err := NewSSH(testNode)
 	assert.Nil(t, err)
