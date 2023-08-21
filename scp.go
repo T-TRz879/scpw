@@ -664,7 +664,7 @@ func (scp *SCP) Get(ctx context.Context, srcPath, dstPath string) error {
 	return nil
 }
 
-func (scp *SCP) GetAll(ctx context.Context, loca /**/ lPath, remotePath string) error {
+func (scp *SCP) GetAll(ctx context.Context, localPath, remotePath string) error {
 	session, err := scp.NewSession()
 	if err != nil {
 		return err
