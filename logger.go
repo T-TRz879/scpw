@@ -69,7 +69,7 @@ func (l *logHandle) Log(args ...interface{}) {
 }
 
 func newLogger(name string) *logHandle {
-	l := &logHandle{Logger: *logrus.New(), name: name, colorful: SupportANSIColor(os.Stderr.Fd())}
+	l := &logHandle{Logger: *logrus.New(), name: name, colorful: true}
 	l.Formatter = l
 	if syslogHook != nil {
 		l.AddHook(syslogHook)

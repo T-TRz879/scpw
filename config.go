@@ -1,6 +1,7 @@
 package scpw
 
 import (
+	"fmt"
 	"gopkg.in/yaml.v2"
 	"os"
 	"os/user"
@@ -70,5 +71,5 @@ func LoadConfigBytes(names ...string) ([]byte, error) {
 			return sshw, nil
 		}
 	}
-	return nil, err
+	return nil, fmt.Errorf("cannot find config from %s", u.HomeDir)
 }

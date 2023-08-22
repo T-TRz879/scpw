@@ -172,7 +172,7 @@ func (scp *SCP) SwitchScpwFunc(ctx context.Context, localPath, remotePath string
 		last := remotePath[len(remotePath)-1]
 		if last == '\\' || last == '/' {
 			remotePath = remotePath[:len(remotePath)-1]
-			err := os.Mkdir(localTmp, os.FileMode(uint32(0755)))
+			err := os.Mkdir(localTmp, os.FileMode(0755))
 			if err != nil {
 				return err
 			}
@@ -417,26 +417,26 @@ func WalkTree(ctx context.Context, scpChan *scpChan, rootParent, root, dstPath s
 }
 
 func (scp *SCP) Put(ctx context.Context, srcPath, dstPath string) error {
-	resource, err := NewResource(srcPath)
+	stat, err := os.Stat(srcPath)
 	if err != nil {
 		return err
 	}
-	if resource.IsDir() {
+	if stat.IsDir() {
 		return errors.New(fmt.Sprintf("local:[%s] is dir", srcPath))
 	}
 	var atime, mtime string
 	if scp.KeepTime {
-		atime, mtime = StatTimeV2(resource.FileInfo)
+		atime, mtime = StatTimeV2(stat)
 	}
-	mode, err := FileModeV1(resource.Path)
+	mode, err := FileModeV1(srcPath)
 	if err != nil {
 		return err
 	}
-	open, err := os.Open(resource.Path)
+	open, err := os.Open(srcPath)
 	if err != nil {
 		return err
 	}
-	return scp.put(ctx, dstPath, open, mode, resource.Size(), atime, mtime)
+	return scp.put(ctx, dstPath, open, mode, stat.Size(), atime, mtime)
 }
 
 func (scp *SCP) put(ctx context.Context, dstPath string, in io.Reader, mode string, size int64, atime, mtime string) error {

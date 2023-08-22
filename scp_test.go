@@ -106,16 +106,6 @@ func TestPutAll(t *testing.T) {
 	assert.Nil(t, err)
 }
 
-//func TestGetSwitch(t *testing.T) {
-//	// keep remote server has remoteFile
-//	local, remote := RandName(baseDir), filepath.Join(baseDir, "file1")
-//	ssh, err := NewSSH(testNode)
-//	assert.Nil(t, err)
-//	scpwCli := NewSCP(ssh, true)
-//	err = scpwCli.SwitchScpwFunc(context.Background(), local, remote, GET)
-//	assert.Nil(t, err)
-//}
-
 func TestGetFile(t *testing.T) {
 	local, remote := RandName("/tmp"), RandName(baseRemoteDir)
 	assert.Nil(t, writeFile(remote))
@@ -154,18 +144,6 @@ func TestGetFileRemoteIsDir(t *testing.T) {
 	assert.NotNil(t, err)
 }
 
-//func TestGetAllSwitch(t *testing.T) {
-//	local := RandName("/tmp")
-//	os.Mkdir(local, os.FileMode(uint32(0777)))
-//	log.Infof("local:%s", local)
-//	remote := filepath.Join(baseDir, "dir1/")
-//	ssh, err := NewSSH(testNode)
-//	assert.Nil(t, err)
-//	scpwCli := NewSCP(ssh, true)
-//	err = scpwCli.SwitchScpwFunc(context.Background(), local, remote, GET)
-//	assert.NotNil(t, err)
-//}
-
 func TestGetAll(t *testing.T) {
 	local := RandName("/tmp")
 	assert.Nil(t, mkdir(local))
@@ -175,6 +153,66 @@ func TestGetAll(t *testing.T) {
 	scpwCli := NewSCP(ssh, true)
 	err = scpwCli.GetAll(context.Background(), local, remote)
 	assert.Nil(t, err)
+}
+
+func TestPutSwitchScpwFunc(t *testing.T) {
+	// put file
+	local := RandName("/tmp")
+	assert.Nil(t, writeFile(local))
+	remote := RandName("/tmp")
+	ssh, err := NewSSH(testNode)
+	assert.Nil(t, err)
+	scpwCli := NewSCP(ssh, true)
+	err = scpwCli.SwitchScpwFunc(context.Background(), local, remote, PUT)
+	assert.Nil(t, err)
+
+	local = RandName("/tmp")
+	assert.Nil(t, mkdir(local))
+	assert.Nil(t, writeFile(RandName(local)))
+	assert.Nil(t, writeFile(RandName(local)))
+	remote = RandName("/tmp")
+	assert.Nil(t, mkdir(remote))
+	// put dir all
+	err = scpwCli.SwitchScpwFunc(context.Background(), local, remote, PUT)
+	assert.Nil(t, err)
+
+	// put dir exclude root
+	remote = RandName("/tmp")
+	assert.Nil(t, mkdir(remote))
+	err = scpwCli.SwitchScpwFunc(context.Background(), local+"/*", remote, PUT)
+	assert.Nil(t, err)
+
+	// put file permission deny
+	local = "/tmp/notexist"
+	remote = RandName("/tmp")
+	err = scpwCli.SwitchScpwFunc(context.Background(), local, remote, PUT)
+	assert.NotNil(t, err)
+}
+
+func TestGetSwitchScpwFunc(t *testing.T) {
+	// get file
+	local := RandName("/tmp")
+	assert.Nil(t, mkdir(local))
+	remote := RandName("/tmp")
+	assert.Nil(t, writeFile(remote))
+	ssh, err := NewSSH(testNode)
+	assert.Nil(t, err)
+	scpwCli := NewSCP(ssh, true)
+	err = scpwCli.SwitchScpwFunc(context.Background(), local, remote, GET)
+	assert.Nil(t, err)
+
+	// get dir all
+	local = RandName("/tmp")
+	assert.Nil(t, mkdir(local))
+	remote = baseRemoteDir
+	err = scpwCli.SwitchScpwFunc(context.Background(), local, remote+"/", GET)
+	assert.Nil(t, err)
+
+	// get file permission deny
+	local = RandName("/tmp")
+	remote = noPermissionFile
+	err = scpwCli.SwitchScpwFunc(context.Background(), local, remote, GET)
+	assert.NotNil(t, err)
 }
 
 func TestWalkTree(t *testing.T) {

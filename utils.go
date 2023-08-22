@@ -1,20 +1,14 @@
 package scpw
 
 import (
-	"errors"
 	"fmt"
-	"github.com/go-cmd/cmd"
 	"github.com/google/uuid"
-	"github.com/mattn/go-isatty"
-	"golang.org/x/crypto/ssh"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strconv"
 )
 
 var (
-	unit    = []string{"B", "KB", "GB", "TB"}
 	letters = []byte("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890")
 )
 
@@ -48,22 +42,6 @@ func MaxInt64(a, b int64) int64 {
 
 func Addr(ip, port string) string {
 	return fmt.Sprintf("%s:%s", ip, port)
-}
-
-func SupportANSIColor(fd uintptr) bool {
-	return isatty.IsTerminal(fd) && runtime.GOOS != "windows"
-}
-
-func HostKey(ip string) (ssh.PublicKey, error) {
-	findCmd := cmd.NewCmd("ssh-keygen", "-F", ip)
-	statusChan := findCmd.Start()
-	finalStatus := <-statusChan
-	if finalStatus.Error != nil || len(finalStatus.Stdout) == 0 {
-		log.Errorf("cannot find ip:{%s} HostKey", ip)
-		return nil, errors.New("find HostKey fail")
-	}
-	hostKey, _, _, _, err := ssh.ParseAuthorizedKey([]byte(finalStatus.Stdout[1]))
-	return hostKey, err
 }
 
 func FileModeV1(root string) (string, error) {
@@ -104,15 +82,15 @@ func StatDir(root string) (entries []os.DirEntry, name, mode, atime, mtime strin
 	return
 }
 
-func StatFile(root string) (string, string, string, string, string, error) {
+func StatFile(root string) (name string, mode string, atime string, mtime string, size string, err error) {
 	stat, err := os.Stat(root)
 	if err != nil {
 		return "", "", "", "", "", err
 	}
-	name := stat.Name()
-	mode := FileModeV2(stat)
-	atime, mtime := StatTimeV2(stat)
-	size := strconv.FormatInt(stat.Size(), 10)
+	name = stat.Name()
+	mode = FileModeV2(stat)
+	atime, mtime = StatTimeV2(stat)
+	size = strconv.FormatInt(stat.Size(), 10)
 	return name, mode, size, atime, mtime, nil
 }
 

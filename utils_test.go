@@ -2,6 +2,7 @@ package scpw
 
 import (
 	"fmt"
+	"github.com/stretchr/testify/require"
 	"math/rand"
 	"os"
 	"path/filepath"
@@ -9,27 +10,102 @@ import (
 	"time"
 )
 
-func TestFileMode(t *testing.T) {
+func TestMinInt(t *testing.T) {
+	a, b := 1, 2
+	require.Equal(t, a, MinInt(a, b))
+	require.Equal(t, a, MinInt(b, a))
+}
+
+func TestMaxInt(t *testing.T) {
+	a, b := 1, 2
+	require.Equal(t, b, MaxInt(a, b))
+	require.Equal(t, b, MaxInt(b, a))
+}
+
+func TestMinInt64(t *testing.T) {
+	a, b := int64(1), int64(2)
+	require.Equal(t, a, MinInt64(a, b))
+	require.Equal(t, a, MinInt64(b, a))
+}
+
+func TestMaxInt64(t *testing.T) {
+	a, b := int64(1), int64(2)
+	require.Equal(t, b, MaxInt64(a, b))
+	require.Equal(t, b, MaxInt64(b, a))
+}
+
+func TestAddr(t *testing.T) {
+	require.Equal(t, "127.0.0.1:80", Addr("127.0.0.1", "80"))
+}
+
+func TestFileModeV1(t *testing.T) {
 	mode, err := FileModeV1("./cmd/scpw/main.go")
-	if err != nil {
-		panic(err)
-	}
-	log.Infof("mode:%s", mode)
+	require.Nil(t, err)
+	log.Infof(mode)
+
+	mode, err = FileModeV1("./notexist.go")
+	require.NotNil(t, err)
+}
+
+func TestFileModeV2(t *testing.T) {
+	stat, err := os.Stat("./cmd/scpw/main.go")
+	require.Nil(t, err)
+	v2 := FileModeV2(stat)
+	log.Infof(v2)
+}
+
+func TestStatDirMeta(t *testing.T) {
+	_, _, _, _, _, err := StatDirMeta("./notexist")
+	require.NotNil(t, err)
+
+	name, mode, atime, mtime, dir, err := StatDirMeta("./cmd")
+	require.Nil(t, err)
+	log.Infof("name:%s mode:%s atime:%s mtime:%s dir:%v", name, mode, atime, mtime, dir)
+}
+
+func TestStatDirChild(t *testing.T) {
+	child, err := StatDirChild("./cmd")
+	require.Nil(t, err)
+	log.Infof("child:%v", child)
+}
+
+func TestStatDir(t *testing.T) {
+	entries, name, mode, atime, mtime, isDir, err := StatDir("./cmd")
+	require.Nil(t, err)
+	log.Infof("entries:%v name:%s mode:%s atime:%s mtime:%s isDir:%v", entries, name, mode, atime, mtime, isDir)
+
+	_, _, _, _, _, _, err = StatDir("./notexist")
+	require.NotNil(t, err)
+}
+
+func TestFile(t *testing.T) {
+	name, mode, atime, mtime, size, err := StatFile("./cmd/scpw/main.go")
+	require.Nil(t, err)
+	log.Infof("name:%s mode:%s atime:%s mtime:%s size:%s", name, mode, atime, mtime, size)
+
+	_, _, _, _, _, err = StatFile("./notexist")
+	require.NotNil(t, err)
+}
+
+func TestParseUnit32(t *testing.T) {
+	unit32, err := ParseUnit32("0777")
+	require.Nil(t, err)
+	require.Equal(t, uint32(511), unit32)
+
+	_, err = ParseUnit32("3gadfsgasd")
+	require.NotNil(t, err)
+}
+
+func TestParseInt64(t *testing.T) {
+	res, err := ParseInt64("1446425371")
+	require.Nil(t, err)
+	require.Equal(t, int64(1446425371), res)
 }
 
 func TestStatTimeV2(t *testing.T) {
 	open, _ := os.Stat("./cmd/scpw/main.go")
 	atime, mtime := StatTimeV2(open)
 	log.Infof("atime:%s mtime:%s", atime, mtime)
-}
-
-func TestParseInt64(t *testing.T) {
-	res, err := ParseInt64("1446425371")
-	if err != nil {
-		panic(err)
-	}
-	time := res
-	log.Infof("time:%d", time)
 }
 
 func TestParseInt8(t *testing.T) {
