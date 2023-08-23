@@ -343,15 +343,13 @@ func (scp *SCP) PutAll(ctx context.Context, srcPath, dstPath string) error {
 
 	go func() {
 		defer wg.Done()
-		err = session.Run(fmt.Sprintf("scp -rt%s%q", scp.TimeOption, dstPath))
-		if err != nil {
-			errChan <- err
+		if e := session.Run(fmt.Sprintf("scp -rt%s%q", scp.TimeOption, dstPath)); e != nil {
+			errChan <- e
 			return
 		}
 
-		err = checkResponse(stdout)
-		if err != nil {
-			errChan <- err
+		if e := checkResponse(stdout); e != nil {
+			errChan <- e
 			return
 		}
 	}()
@@ -817,12 +815,10 @@ func checkResponse(out io.Reader) error {
 func ack(in io.Writer) error {
 	bytes := make([]uint8, 1)
 	bytes[0] = 0
-	n, err := in.Write(bytes)
-	if err != nil {
+	if n, err := in.Write(bytes); err != nil {
 		return err
-	}
-	if n != 1 {
-		return errors.New("ack fail")
+	} else if n != 1 {
+		return fmt.Errorf("ack fail")
 	}
 	return nil
 }
@@ -877,14 +873,11 @@ func parseCommandType(s string) CommandType {
 func parseContent(in io.Writer, out io.Reader, size int64) error {
 	var read int64
 	for read < size {
-		readN, err := io.CopyN(in, out, size)
-		if err != nil {
+		if readN, err := io.CopyN(in, out, size); err != nil {
 			return err
+		} else {
+			read += readN
 		}
-		if readN == 0 {
-			return errors.New(fmt.Sprintf("parseContent fail readN:%d size:%d", readN, size))
-		}
-		read += readN
 	}
 	return nil
 }

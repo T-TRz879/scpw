@@ -1,6 +1,7 @@
 package scpw
 
 import (
+	"bytes"
 	"context"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -208,7 +209,13 @@ func TestGetSwitchScpwFunc(t *testing.T) {
 	err = scpwCli.SwitchScpwFunc(context.Background(), local, remote+"/", GET)
 	assert.Nil(t, err)
 
-	// get file permission deny
+	// get file local permission deny
+	local = noPermissionDir + "/"
+	remote = baseRemoteDir + "/"
+	err = scpwCli.SwitchScpwFunc(context.Background(), local, remote, GET)
+	assert.NotNil(t, err)
+
+	// get file remote permission deny
 	local = RandName("/tmp")
 	remote = noPermissionFile
 	err = scpwCli.SwitchScpwFunc(context.Background(), local, remote, GET)
@@ -245,4 +252,20 @@ loop:
 		}
 	}
 	log.Infof("file:%d dir:%d", numF, numD)
+}
+
+func TestAck(t *testing.T) {
+	newBuffer := bytes.NewBuffer([]byte{})
+	assert.Nil(t, ack(newBuffer))
+}
+
+func TestParseContent(t *testing.T) {
+	in := bytes.NewBuffer([]byte{1, 2, 3, 4})
+	out := bytes.NewReader(make([]byte, 4))
+
+	// process success
+	assert.Nil(t, parseContent(in, out, int64(4)))
+
+	// EOF
+	assert.NotNil(t, parseContent(in, out, int64(5)))
 }
