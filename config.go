@@ -15,10 +15,6 @@ const (
 	GET SCPWType = "GET"
 )
 
-var (
-	config []*Node
-)
-
 type Node struct {
 	Name     string   `yaml:"name"`
 	Host     string   `yaml:"host"`
@@ -41,15 +37,9 @@ func LoadConfig() ([]*Node, error) {
 	if err != nil {
 		return nil, err
 	}
-	var c []*Node
-	err = yaml.Unmarshal(b, &c)
-	if err != nil {
-		return nil, err
-	}
-
-	config = c
-
-	return config, nil
+	var config []*Node
+	err = yaml.Unmarshal(b, &config)
+	return config, err
 }
 
 func LoadConfigBytes(names ...string) ([]byte, error) {
@@ -59,15 +49,13 @@ func LoadConfigBytes(names ...string) ([]byte, error) {
 	}
 	// homedir
 	for i := range names {
-		sshw, err := os.ReadFile(filepath.Join(u.HomeDir, names[i]))
-		if err == nil {
+		if sshw, e := os.ReadFile(filepath.Join(u.HomeDir, names[i])); e == nil {
 			return sshw, nil
 		}
 	}
 	// relative
 	for i := range names {
-		sshw, err := os.ReadFile(names[i])
-		if err == nil {
+		if sshw, e := os.ReadFile(names[i]); e == nil {
 			return sshw, nil
 		}
 	}
