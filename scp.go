@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/google/uuid"
+	"github.com/vbauerster/mpb/v8"
 	"golang.org/x/crypto/ssh"
 	"io"
 	"net"
@@ -20,6 +21,8 @@ var log = GetLogger("scpw")
 
 type CommandType = string
 
+var ONCE_LEN = 128 * 1024
+
 const (
 	C    CommandType = "C"
 	D    CommandType = "D"
@@ -27,6 +30,11 @@ const (
 	T    CommandType = "T"
 	NULL CommandType = "NULL"
 )
+
+type Context struct {
+	Ctx context.Context
+	Bar *mpb.Bar
+}
 
 type File struct {
 	Name       string
@@ -147,7 +155,7 @@ func NewSCP(cli *ssh.Client, keepTime bool) *SCP {
 	}
 }
 
-func (scp *SCP) SwitchScpwFunc(ctx context.Context, localPath, remotePath string, typ SCPWType) error {
+func (scp *SCP) SwitchScpwFunc(ctx Context, localPath, remotePath string, typ SCPWType) error {
 	excludeRootDir := false
 	if typ == PUT {
 		if localPath[len(localPath)-1] == '*' {
@@ -215,7 +223,7 @@ func (scp *SCP) replaceDir(tmp, local, remote string) error {
 	return os.RemoveAll(tmp)
 }
 
-func (scp *SCP) PutAllExcludeRoot(ctx context.Context, srcPath, dstPath string) error {
+func (scp *SCP) PutAllExcludeRoot(ctx Context, srcPath, dstPath string) error {
 	var err error
 	child, err := StatDirChild(srcPath)
 	if err != nil {
@@ -235,7 +243,7 @@ func (scp *SCP) PutAllExcludeRoot(ctx context.Context, srcPath, dstPath string) 
 	return nil
 }
 
-func (scp *SCP) PutAll(ctx context.Context, srcPath, dstPath string) error {
+func (scp *SCP) PutAll(ctx Context, srcPath, dstPath string) error {
 	wg := sync.WaitGroup{}
 	wg.Add(2)
 	session, err := scp.NewSession()
@@ -305,7 +313,7 @@ func (scp *SCP) PutAll(ctx context.Context, srcPath, dstPath string) error {
 						return
 					}
 					open, e := os.Open(file.LocalPath)
-					e = parseContent(stdin, open, sizeNum)
+					e = parseContent(ctx.Bar, stdin, open, sizeNum)
 					open.Close()
 					if e != nil {
 						errChan <- e
@@ -322,7 +330,7 @@ func (scp *SCP) PutAll(ctx context.Context, srcPath, dstPath string) error {
 						return
 					}
 				}
-				fmt.Printf("    file:[%40s] size:[%15s]\n", file.Name, file.Size)
+				//fmt.Printf("    file:[%40s] size:[%15s]\n", file.Name, file.Size)
 			case <-scpCh.exitChan:
 				_, err = fmt.Fprintln(stdin, E)
 				if err != nil {
@@ -364,10 +372,10 @@ func (scp *SCP) PutAll(ctx context.Context, srcPath, dstPath string) error {
 	return nil
 }
 
-func WalkTree(ctx context.Context, scpChan *scpChan, rootParent, root, dstPath string) error {
+func WalkTree(ctx Context, scpChan *scpChan, rootParent, root, dstPath string) error {
 	select {
-	case <-ctx.Done():
-		return ctx.Err()
+	case <-ctx.Ctx.Done():
+		return ctx.Ctx.Err()
 	default:
 		child, name, mode, atime, mtime, _, err := StatDir(root)
 		if err != nil {
@@ -404,7 +412,7 @@ func WalkTree(ctx context.Context, scpChan *scpChan, rootParent, root, dstPath s
 	}
 }
 
-func (scp *SCP) Put(ctx context.Context, srcPath, dstPath string) error {
+func (scp *SCP) Put(ctx Context, srcPath, dstPath string) error {
 	stat, err := os.Stat(srcPath)
 	if err != nil {
 		return err
@@ -427,7 +435,7 @@ func (scp *SCP) Put(ctx context.Context, srcPath, dstPath string) error {
 	return scp.put(ctx, dstPath, open, mode, stat.Size(), atime, mtime)
 }
 
-func (scp *SCP) put(ctx context.Context, dstPath string, in io.Reader, mode string, size int64, atime, mtime string) error {
+func (scp *SCP) put(ctx Context, dstPath string, in io.Reader, mode string, size int64, atime, mtime string) error {
 	wg := sync.WaitGroup{}
 	session, err := scp.NewSession()
 	if err != nil {
@@ -496,7 +504,7 @@ func (scp *SCP) put(ctx context.Context, dstPath string, in io.Reader, mode stri
 			errChan <- err
 			return
 		}
-		fmt.Printf("    file:[%40s] size:[%15d]\n", fileName, size)
+		//fmt.Printf("    file:[%40s] size:[%15d]\n", fileName, size)
 	}()
 
 	var err2 error
@@ -524,7 +532,7 @@ func (scp *SCP) put(ctx context.Context, dstPath string, in io.Reader, mode stri
 	return nil
 }
 
-func (scp *SCP) Get(ctx context.Context, srcPath, dstPath string) error {
+func (scp *SCP) Get(ctx Context, srcPath, dstPath string) error {
 	session, err := scp.NewSession()
 	defer session.Close()
 	if err != nil {
@@ -612,7 +620,7 @@ func (scp *SCP) Get(ctx context.Context, srcPath, dstPath string) error {
 			}
 		}
 
-		if err = parseContent(in, stdout, attr.Size); err != nil {
+		if err = parseContent(ctx.Bar, in, stdout, attr.Size); err != nil {
 			os.Remove(srcPath)
 			errChan <- err
 			return
@@ -636,7 +644,7 @@ func (scp *SCP) Get(ctx context.Context, srcPath, dstPath string) error {
 			os.Remove(srcPath)
 			return
 		}
-		fmt.Printf("    file:[%40s] size:[%15d]\n", filepath.Base(srcPath), attr.Size)
+		//fmt.Printf("    file:[%40s] size:[%15d]\n", filepath.Base(srcPath), attr.Size)
 	}()
 	wg.Wait()
 	close(errChan)
@@ -648,7 +656,7 @@ func (scp *SCP) Get(ctx context.Context, srcPath, dstPath string) error {
 	return nil
 }
 
-func (scp *SCP) GetAll(ctx context.Context, localPath, remotePath string) error {
+func (scp *SCP) GetAll(ctx Context, localPath, remotePath string) error {
 	session, err := scp.NewSession()
 	if err != nil {
 		return err
@@ -729,7 +737,7 @@ func (scp *SCP) GetAll(ctx context.Context, localPath, remotePath string) error 
 					os.Remove(curLocal)
 					errChan <- err
 				}
-				fmt.Printf("    file:[%40s] size:[%15d]\n", attr.Name, attr.Size)
+				//fmt.Printf("    file:[%40s] size:[%15d]\n", attr.Name, attr.Size)
 
 			} else if attr.Typ == D {
 				// mkdir dir
@@ -737,7 +745,7 @@ func (scp *SCP) GetAll(ctx context.Context, localPath, remotePath string) error 
 					errChan <- e
 					return
 				}
-				fmt.Printf("    file:[%40s] size:[%15d]\n", attr.Name, attr.Size)
+				//fmt.Printf("    file:[%40s] size:[%15d]\n", attr.Name, attr.Size)
 
 			} else if attr.Typ == E {
 				// cd ../
@@ -757,7 +765,7 @@ func (scp *SCP) GetAll(ctx context.Context, localPath, remotePath string) error 
 				}
 			}
 			if attr.Typ == C {
-				if e = parseContent(in, stdout, attr.Size); e != nil {
+				if e = parseContent(ctx.Bar, in, stdout, attr.Size); e != nil {
 					os.Remove(curLocal)
 					errChan <- e
 					return
@@ -870,13 +878,15 @@ func parseCommandType(s string) CommandType {
 	}
 }
 
-func parseContent(in io.Writer, out io.Reader, size int64) error {
+func parseContent(bar *mpb.Bar, in io.Writer, out io.Reader, size int64) error {
 	var read int64
 	for read < size {
 		if readN, err := io.CopyN(in, out, size); err != nil {
 			return err
 		} else {
 			read += readN
+			bar.IncrBy(int(readN))
+			bar.SetTotal(bar.Current()+readN, false)
 		}
 	}
 	return nil

@@ -94,6 +94,8 @@ func Run(ctx *cli.Context) error {
 }
 
 func initScpCli(ctx *cli.Context, node *scpw.Node) error {
+	p := scpw.NewProgress()
+	keepTime := ctx.Bool("keep-time")
 	wg := sync.WaitGroup{}
 	todo := make(chan scpw.LRMap, 5)
 	for i := 0; i < threads; i++ {
@@ -103,7 +105,6 @@ func initScpCli(ctx *cli.Context, node *scpw.Node) error {
 			if err != nil {
 				panic(err)
 			}
-			keepTime := ctx.Bool("keep-time")
 			scpwCli := scpw.NewSCP(ssh, keepTime)
 			defer func() {
 				ssh.Close()
@@ -111,7 +112,9 @@ func initScpCli(ctx *cli.Context, node *scpw.Node) error {
 			}()
 			for lr := range todo {
 				local, remote := lr.Local, lr.Remote
-				err = scpwCli.SwitchScpwFunc(ctx.Context, local, remote, node.Typ)
+				scpwCtx := scpw.Context{Ctx: ctx.Context, Bar: p.NewInfiniteByesBar(local)}
+				err = scpwCli.SwitchScpwFunc(scpwCtx, local, remote, node.Typ)
+				scpwCtx.Bar.SetTotal(-1, true)
 				if err != nil {
 					panic(err)
 				}
@@ -123,5 +126,6 @@ func initScpCli(ctx *cli.Context, node *scpw.Node) error {
 	}
 	close(todo)
 	wg.Wait()
+	p.Wait()
 	return nil
 }
