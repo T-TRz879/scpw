@@ -155,16 +155,17 @@ func NewSCP(cli *ssh.Client, keepTime bool) *SCP {
 	}
 }
 
-func (scp *SCP) SwitchScpwFunc(ctx Context, localPath, remotePath string, typ SCPWType) error {
+func (scp *SCP) SwitchScpwFunc(ctx Context, localPath, remotePath string, typ SCPWType) (err error) {
 	excludeRootDir := false
 	if typ == PUT {
 		if localPath[len(localPath)-1] == '*' {
 			excludeRootDir = true
 			localPath = localPath[:len(localPath)-1]
 		}
-		stat, err := os.Stat(localPath)
-		if err != nil {
-			return err
+		stat, err1 := os.Stat(localPath)
+		if err1 != nil {
+			err = err1
+			return
 		}
 		if stat.IsDir() {
 			if excludeRootDir {
@@ -180,16 +181,16 @@ func (scp *SCP) SwitchScpwFunc(ctx Context, localPath, remotePath string, typ SC
 		last := remotePath[len(remotePath)-1]
 		if last == '\\' || last == '/' {
 			remotePath = remotePath[:len(remotePath)-1]
-			if err := os.Mkdir(localTmp, os.FileMode(0755)); err != nil {
+			if err = os.Mkdir(localTmp, os.FileMode(0755)); err != nil {
 				return err
 			}
-			if err := scp.GetAll(ctx, localTmp, remotePath); err == nil {
+			if err = scp.GetAll(ctx, localTmp, remotePath); err == nil {
 				return scp.replaceDir(localTmp, localPath, remotePath)
 			} else {
 				return err
 			}
 		} else {
-			if err := scp.Get(ctx, localTmp, remotePath); err == nil {
+			if err = scp.Get(ctx, localTmp, remotePath); err == nil {
 				return scp.replace(localTmp, localPath)
 			} else {
 				return err
@@ -307,16 +308,16 @@ func (scp *SCP) PutAll(ctx Context, srcPath, dstPath string) error {
 				}
 
 				if !file.IsDir {
-					sizeNum, e := ParseInt64(size)
-					if e != nil {
-						errChan <- e
+					sizeNum, err1 := ParseInt64(size)
+					if err1 != nil {
+						errChan <- err
 						return
 					}
-					open, e := os.Open(file.LocalPath)
-					e = parseContent(ctx.Bar, stdin, open, sizeNum)
+					open, err1 := os.Open(file.LocalPath)
+					err1 = parseContent(ctx.Bar, stdin, open, sizeNum)
 					open.Close()
-					if e != nil {
-						errChan <- e
+					if err1 != nil {
+						errChan <- err1
 						return
 					}
 
@@ -545,16 +546,16 @@ func (scp *SCP) Get(ctx Context, srcPath, dstPath string) error {
 	go func() {
 		defer wg.Done()
 
-		stdin, e := session.StdinPipe()
-		if e != nil {
-			errChan <- e
+		stdin, err1 := session.StdinPipe()
+		if err1 != nil {
+			errChan <- err1
 			return
 		}
 		defer stdin.Close()
 
-		stdout, e := session.StdoutPipe()
-		if e != nil {
-			errChan <- e
+		stdout, err1 := session.StdoutPipe()
+		if err1 != nil {
+			errChan <- err1
 			return
 		}
 
@@ -599,9 +600,9 @@ func (scp *SCP) Get(ctx Context, srcPath, dstPath string) error {
 		}
 
 		// create file
-		in, e := os.Create(srcPath)
-		if e != nil {
-			errChan <- e
+		in, err1 := os.Create(srcPath)
+		if err1 != nil {
+			errChan <- err1
 			return
 		}
 
